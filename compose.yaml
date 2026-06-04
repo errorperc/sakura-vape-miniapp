@@ -66,6 +66,7 @@ services:
     cpus: 0.6
     logging: *default-logging
     networks:
+      - edge
       - backend
 
   migrate:
