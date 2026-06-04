@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_ADMIN_TELEGRAM_IDS?: string;
+  readonly VITE_OWNER_TELEGRAM_ID?: string;
   readonly VITE_API_BASE_URL?: string;
 }
 

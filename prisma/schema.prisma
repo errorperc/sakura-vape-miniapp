@@ -9,7 +9,9 @@ datasource db {
 
 enum UserRole {
   user
+  manager
   admin
+  owner
 }
 
 enum ProductCategory {

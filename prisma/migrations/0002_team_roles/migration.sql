@@ -1,0 +1,2 @@
+ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'manager';
+ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'owner';

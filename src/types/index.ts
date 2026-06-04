@@ -1,5 +1,22 @@
 export type View = 'home' | 'profile' | 'delivery' | 'cart' | 'admin';
 
+export type AdminRole = 'user' | 'manager' | 'admin' | 'owner';
+
+export interface AdminSession {
+  telegramId: string;
+  role: AdminRole;
+  isAdmin: boolean;
+  isOwner: boolean;
+}
+
+export interface TeamMember {
+  telegramId: string;
+  firstName: string;
+  username: string | null;
+  role: AdminRole;
+  createdAt: string;
+}
+
 export type ProductCategory = 'disposable' | 'liquid' | 'pod' | 'cartridge' | 'accessory';
 
 export type StockStatus = 'in_stock' | 'low_stock' | 'out_of_stock';

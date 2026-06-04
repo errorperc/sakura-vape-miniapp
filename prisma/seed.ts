@@ -46,15 +46,15 @@ const products = [
 ];
 
 async function main() {
-  const adminTelegramId = BigInt(process.env.ADMIN_TELEGRAM_ID ?? '777000');
+  const adminTelegramId = BigInt(process.env.OWNER_TELEGRAM_ID ?? process.env.ADMIN_TELEGRAM_ID ?? '777000');
   const admin = await prisma.user.upsert({
     where: { telegramId: adminTelegramId },
-    update: { role: UserRole.admin },
+    update: { role: UserRole.owner },
     create: {
       telegramId: adminTelegramId,
       firstName: 'Алексей',
       username: 'demo_vaper',
-      role: UserRole.admin,
+      role: UserRole.owner,
     },
   });
 

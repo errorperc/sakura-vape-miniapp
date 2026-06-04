@@ -4,8 +4,10 @@ import type { ChangeEvent, FormEvent } from 'react';
 import { publicAsset } from '../lib/assets';
 import type { DeliverySettings, Order, OrderStatus, Product, ProductCategory, StockStatus } from '../types';
 import { OrderList } from './OrderList';
+import { TeamManagement } from './TeamManagement';
 
 interface AdminPanelProps {
+  isOwner: boolean;
   products: Product[];
   orders: Order[];
   deliverySettings: DeliverySettings;
@@ -48,6 +50,7 @@ const makeEmptyProduct = (): Product => ({
 });
 
 export function AdminPanel({
+  isOwner,
   products,
   orders,
   deliverySettings,
@@ -143,8 +146,10 @@ export function AdminPanel({
           <span className="eyebrow">Admin mode</span>
           <h1>Управление магазином</h1>
         </div>
-        <span className="admin-badge">ID проверен</span>
+        <span className="admin-badge">{isOwner ? 'Главный админ' : 'Администратор'}</span>
       </div>
+
+      {isOwner ? <TeamManagement /> : null}
 
       <form className="admin-form admin-delivery-editor" onSubmit={submitDeliverySettings}>
         <div className="section-heading">

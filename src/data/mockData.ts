@@ -7,6 +7,8 @@ const configuredAdminIds = (import.meta.env.VITE_ADMIN_TELEGRAM_IDS ?? '')
   .filter((value) => Number.isSafeInteger(value) && value > 0);
 
 export const ADMIN_TELEGRAM_IDS = configuredAdminIds.length > 0 ? configuredAdminIds : [777000];
+export const OWNER_TELEGRAM_ID =
+  Number(import.meta.env.VITE_OWNER_TELEGRAM_ID) || ADMIN_TELEGRAM_IDS[0];
 
 export const filters: CatalogFilter[] = [
   { id: 'all', label: 'Все', mode: 'all' },

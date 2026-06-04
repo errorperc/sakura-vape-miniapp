@@ -1,5 +1,5 @@
 import WebApp from '@twa-dev/sdk';
-import { ADMIN_TELEGRAM_IDS } from '../data/mockData';
+import { OWNER_TELEGRAM_ID } from '../data/mockData';
 import type { TelegramUserProfile } from '../types';
 
 const demoUser: TelegramUserProfile = {
@@ -46,8 +46,8 @@ export const getTelegramUser = (): TelegramUserProfile => {
   };
 };
 
-export const isAdminUser = (userId: number) => {
-  return ADMIN_TELEGRAM_IDS.includes(userId);
+export const isOwnerUser = (userId: number) => {
+  return OWNER_TELEGRAM_ID === userId;
 };
 
 export const haptic = (type: 'light' | 'medium' | 'success' | 'warning' | 'error' = 'light') => {

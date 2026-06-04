@@ -2025,6 +2025,173 @@ textarea:focus {
     inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
 
+.team-management {
+  display: grid;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid rgba(255, 91, 165, 0.18);
+  border-radius: 12px;
+  background:
+    linear-gradient(145deg, rgba(255, 45, 141, 0.08), transparent 34%),
+    rgba(20, 20, 28, 0.82);
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  animation: contentRise 720ms var(--ease-soft) both;
+}
+
+.team-management__heading {
+  padding: 0 1px 3px;
+}
+
+.team-management__counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #ff75b5;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.team-add-form {
+  display: grid;
+  gap: 11px;
+  padding: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  background: rgba(10, 10, 15, 0.46);
+}
+
+.team-role-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 9px;
+  background: rgba(5, 5, 9, 0.42);
+}
+
+.team-role-switch button {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 800;
+  transition:
+    color 420ms var(--ease-soft),
+    background 420ms var(--ease-soft),
+    box-shadow 420ms var(--ease-soft),
+    transform 420ms var(--ease-spring);
+}
+
+.team-role-switch button:active {
+  transform: scale(0.98);
+}
+
+.team-role-switch button.is-active {
+  color: #fff;
+  background: rgba(255, 45, 141, 0.17);
+  box-shadow: inset 0 0 0 1px rgba(255, 89, 165, 0.22);
+}
+
+.team-add-form__note {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.team-list {
+  display: grid;
+  gap: 7px;
+}
+
+.team-member {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto auto;
+  gap: 9px;
+  min-height: 58px;
+  align-items: center;
+  padding: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 9px;
+  background: rgba(9, 9, 14, 0.48);
+  transition:
+    border-color 420ms var(--ease-soft),
+    background 420ms var(--ease-soft),
+    transform 420ms var(--ease-spring);
+}
+
+.team-member--owner {
+  border-color: rgba(255, 91, 165, 0.23);
+  background: rgba(255, 45, 141, 0.075);
+}
+
+.team-member__icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid rgba(255, 91, 165, 0.2);
+  border-radius: 8px;
+  color: #ff70b1;
+  background: rgba(255, 45, 141, 0.1);
+}
+
+.team-member div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.team-member strong,
+.team-member span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-member strong {
+  font-size: 0.78rem;
+}
+
+.team-member span {
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.team-member em {
+  color: #ff78b7;
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+@media (max-width: 390px) {
+  .team-member {
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+  }
+
+  .team-member em {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .team-member > .icon-button {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+}
+
 .admin-delivery-editor__icon {
   display: grid;
   width: 35px;

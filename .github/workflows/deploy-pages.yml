@@ -33,6 +33,7 @@ jobs:
       - name: Build
         env:
           VITE_ADMIN_TELEGRAM_IDS: ${{ vars.VITE_ADMIN_TELEGRAM_IDS }}
+          VITE_OWNER_TELEGRAM_ID: ${{ vars.VITE_OWNER_TELEGRAM_ID }}
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
         run: npm run build
 

@@ -6,7 +6,8 @@ const prisma = new PrismaClient();
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
 const botToken = process.env.TELEGRAM_BOT_TOKEN ?? '';
-const managerTelegramId = process.env.MANAGER_TELEGRAM_ID ?? process.env.ADMIN_TELEGRAM_ID ?? '';
+const ownerTelegramId = process.env.OWNER_TELEGRAM_ID ?? process.env.ADMIN_TELEGRAM_ID ?? '';
+const fallbackManagerTelegramId = process.env.MANAGER_TELEGRAM_ID ?? ownerTelegramId;
 const publicAppOrigin = new URL(
   process.env.PUBLIC_APP_URL ?? 'https://errorperc.github.io/sakura-vape-miniapp/',
 ).origin;
@@ -19,7 +20,7 @@ app.use((request, response, next) => {
 
   if (origin === publicAppOrigin) {
     response.header('Access-Control-Allow-Origin', publicAppOrigin);
-    response.header('Access-Control-Allow-Headers', 'Content-Type');
+    response.header('Access-Control-Allow-Headers', 'Content-Type, X-Telegram-Init-Data');
     response.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
     response.header('Vary', 'Origin');
   }
@@ -130,28 +131,150 @@ app.get('/api/health', async (_request, response) => {
   }
 });
 
-const getAdminTelegramId = (request: express.Request) => {
-  const value = request.header('x-admin-telegram-id');
-  return value ? BigInt(value) : null;
+const upsertAuthenticatedUser = async (telegramUser: TelegramInitUser) => {
+  const telegramId = BigInt(telegramUser.id);
+  const isOwner = String(telegramUser.id) === ownerTelegramId;
+
+  return prisma.user.upsert({
+    where: { telegramId },
+    update: {
+      firstName: [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' '),
+      username: telegramUser.username,
+      ...(isOwner ? { role: UserRole.owner } : {}),
+    },
+    create: {
+      telegramId,
+      firstName: [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' '),
+      username: telegramUser.username,
+      role: isOwner ? UserRole.owner : UserRole.user,
+    },
+  });
 };
 
-const requireAdmin = async (request: express.Request, response: express.Response) => {
-  const telegramId = getAdminTelegramId(request);
+const requireAuthenticatedUser = async (request: express.Request, response: express.Response) => {
+  const telegramUser = validateTelegramInitData(request.header('x-telegram-init-data') ?? request.body?.initData);
 
-  if (!telegramId) {
-    response.status(401).json({ error: 'Admin Telegram ID is required.' });
+  if (!telegramUser) {
+    response.status(401).json({ error: 'Open the shop inside Telegram and try again.' });
     return null;
   }
 
-  const admin = await prisma.user.findUnique({ where: { telegramId } });
+  return upsertAuthenticatedUser(telegramUser);
+};
 
-  if (!admin || admin.role !== UserRole.admin) {
+const requireAdmin = async (request: express.Request, response: express.Response) => {
+  const admin = await requireAuthenticatedUser(request, response);
+  if (!admin) return null;
+
+  if (admin.role !== UserRole.admin && admin.role !== UserRole.owner) {
     response.status(403).json({ error: 'Admin access denied.' });
     return null;
   }
 
   return admin;
 };
+
+const requireOwner = async (request: express.Request, response: express.Response) => {
+  const owner = await requireAuthenticatedUser(request, response);
+  if (!owner) return null;
+
+  if (owner.role !== UserRole.owner || owner.telegramId.toString() !== ownerTelegramId) {
+    response.status(403).json({ error: 'Only the main administrator can manage the team.' });
+    return null;
+  }
+
+  return owner;
+};
+
+const serializeTeamMember = (member: {
+  telegramId: bigint;
+  firstName: string;
+  username: string | null;
+  role: UserRole;
+  createdAt: Date;
+}) => ({
+  telegramId: member.telegramId.toString(),
+  firstName: member.firstName,
+  username: member.username,
+  role: member.role,
+  createdAt: member.createdAt.toISOString(),
+});
+
+app.get('/api/admin/session', async (request, response) => {
+  const user = await requireAuthenticatedUser(request, response);
+  if (!user) return;
+
+  response.json({
+    telegramId: user.telegramId.toString(),
+    role: user.role,
+    isAdmin: user.role === UserRole.admin || user.role === UserRole.owner,
+    isOwner: user.role === UserRole.owner && user.telegramId.toString() === ownerTelegramId,
+  });
+});
+
+app.get('/api/admin/team', async (request, response) => {
+  const owner = await requireOwner(request, response);
+  if (!owner) return;
+
+  const members = await prisma.user.findMany({
+    where: { role: { in: [UserRole.owner, UserRole.admin, UserRole.manager] } },
+    orderBy: [{ role: 'desc' }, { createdAt: 'asc' }],
+  });
+
+  response.json(members.map(serializeTeamMember));
+});
+
+app.post('/api/admin/team', async (request, response) => {
+  const owner = await requireOwner(request, response);
+  if (!owner) return;
+
+  const telegramIdValue = textValue(request.body?.telegramId, 30);
+  const role = request.body?.role;
+
+  if (!/^\d{5,20}$/.test(telegramIdValue) || (role !== UserRole.admin && role !== UserRole.manager)) {
+    response.status(400).json({ error: 'Telegram ID and team role are required.' });
+    return;
+  }
+
+  if (telegramIdValue === ownerTelegramId) {
+    response.status(400).json({ error: 'The main administrator role cannot be changed.' });
+    return;
+  }
+
+  const firstName = textValue(request.body?.firstName, 128) || 'Аккаунт команды';
+  const username = textValue(request.body?.username, 64).replace(/^@/, '') || null;
+  const member = await prisma.user.upsert({
+    where: { telegramId: BigInt(telegramIdValue) },
+    update: { firstName, username, role },
+    create: { telegramId: BigInt(telegramIdValue), firstName, username, role },
+  });
+
+  response.json(serializeTeamMember(member));
+});
+
+app.delete('/api/admin/team/:telegramId', async (request, response) => {
+  const owner = await requireOwner(request, response);
+  if (!owner) return;
+
+  const telegramIdValue = request.params.telegramId;
+  if (!/^\d{5,20}$/.test(telegramIdValue) || telegramIdValue === ownerTelegramId) {
+    response.status(400).json({ error: 'The main administrator cannot be removed.' });
+    return;
+  }
+
+  const member = await prisma.user.findUnique({ where: { telegramId: BigInt(telegramIdValue) } });
+  if (!member) {
+    response.status(404).json({ error: 'Team member not found.' });
+    return;
+  }
+
+  await prisma.user.update({
+    where: { id: member.id },
+    data: { role: UserRole.user },
+  });
+
+  response.status(204).send();
+});
 
 app.get('/api/products', async (_request, response) => {
   const products = await prisma.product.findMany({
@@ -256,7 +379,7 @@ app.delete('/api/admin/products/:id', async (request, response) => {
 });
 
 app.post('/api/order-notifications', async (request, response) => {
-  if (!botToken || !/^-?\d+$/.test(managerTelegramId)) {
+  if (!botToken) {
     response.status(503).json({ error: 'Order notifications are not configured.' });
     return;
   }
@@ -337,20 +460,32 @@ app.post('/api/order-notifications', async (request, response) => {
   notificationCooldowns.set(telegramUser.id, now);
 
   try {
-    const telegramResponse = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: managerTelegramId,
-        text: message,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-      }),
-      signal: AbortSignal.timeout(10_000),
+    const managers = await prisma.user.findMany({
+      where: { role: UserRole.manager },
+      select: { telegramId: true },
     });
-    const telegramResult = (await telegramResponse.json().catch(() => null)) as { ok?: boolean } | null;
+    const recipientIds = managers.length > 0
+      ? managers.map((manager) => manager.telegramId.toString())
+      : [fallbackManagerTelegramId].filter((telegramId) => /^-?\d+$/.test(telegramId));
+    const deliveryResults = await Promise.all(
+      recipientIds.map(async (chatId) => {
+        const telegramResponse = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: message,
+            parse_mode: 'HTML',
+            disable_web_page_preview: true,
+          }),
+          signal: AbortSignal.timeout(10_000),
+        });
+        const telegramResult = (await telegramResponse.json().catch(() => null)) as { ok?: boolean } | null;
+        return telegramResponse.ok && telegramResult?.ok === true;
+      }),
+    );
 
-    if (!telegramResponse.ok || !telegramResult?.ok) {
+    if (deliveryResults.length === 0 || deliveryResults.every((delivered) => !delivered)) {
       notificationCooldowns.delete(telegramUser.id);
       response.status(502).json({ error: 'Telegram did not accept the order notification.' });
       return;

@@ -4,13 +4,14 @@ import { AdminPanel } from './components/AdminPanel';
 import { BottomNav } from './components/BottomNav';
 import { filters, initialDeliverySettings, initialOrders, initialProducts } from './data/mockData';
 import { notifyManagerAboutOrder } from './lib/ordersApi';
-import { formatUserName, getTelegramUser, haptic, initTelegramApp, isAdminUser } from './lib/telegram';
+import { formatUserName, getTelegramUser, haptic, initTelegramApp, isOwnerUser } from './lib/telegram';
+import { getAdminSession } from './lib/teamApi';
 import { CartPage, type ResolvedCartItem } from './pages/CartPage';
 import { DeliveryPage } from './pages/DeliveryPage';
 import { HomePage } from './pages/HomePage';
 import { ProfilePage } from './pages/ProfilePage';
 import { useCartStore } from './store/cartStore';
-import type { CheckoutDraft, DeliverySettings, Order, OrderStatus, Product, StockStatus, View } from './types';
+import type { AdminSession, CheckoutDraft, DeliverySettings, Order, OrderStatus, Product, StockStatus, View } from './types';
 
 const storageKeys = {
   age: 'vape-shop-age-confirmed',
@@ -85,6 +86,7 @@ function App() {
   const [orders, setOrders] = useState<Order[]>(() => readStorage(storageKeys.orders, initialOrders));
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [cartWarning, setCartWarning] = useState('');
+  const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
   const [deliveryDraft, setDeliveryDraft] = useState<CheckoutDraft>(() =>
     readStorage(storageKeys.delivery, {
       name: formatUserName(user),
@@ -96,7 +98,8 @@ function App() {
     readStorage(storageKeys.deliverySettings, initialDeliverySettings),
   );
 
-  const isAdmin = isAdminUser(user.id);
+  const isOwner = isOwnerUser(user.id) || adminSession?.isOwner === true;
+  const isAdmin = isOwner || adminSession?.isAdmin === true;
 
   useEffect(() => {
     initTelegramApp();
@@ -104,6 +107,14 @@ function App() {
 
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (user.isDemo) return;
+
+    getAdminSession()
+      .then(setAdminSession)
+      .catch(() => setAdminSession(null));
+  }, [user.isDemo]);
 
   useEffect(() => {
     writeStorage(storageKeys.age, ageConfirmed);
@@ -344,6 +355,7 @@ function App() {
     if (view === 'admin' && isAdmin) {
       return (
         <AdminPanel
+          isOwner={isOwner}
           products={products}
           orders={orders}
           deliverySettings={deliverySettings}
