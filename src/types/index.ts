@@ -104,6 +104,7 @@ export interface Order {
 }
 
 export interface ManualOrderDraft {
+  customerTelegramId?: string;
   customerName: string;
   address: string;
   comment: string;

@@ -39,6 +39,7 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
   const [flyStyle, setFlyStyle] = useState<CSSProperties | null>(null);
   const [flyKey, setFlyKey] = useState(0);
   const stockClassName = getStockClassName(product);
+  const unavailable = product.stockCount <= 0;
   const disabled = !product.isActive || product.stockCount <= 0 || isAdding;
 
   useEffect(() => {
@@ -119,10 +120,10 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
               <LoaderCircle className="product-card__cart-loader" size={16} aria-hidden="true" />
             ) : added ? (
               <Check size={16} aria-hidden="true" />
-            ) : (
+            ) : unavailable ? null : (
               <Plus size={16} aria-hidden="true" />
             )}
-            {isAdding ? '...' : added ? 'Добавлено' : product.stockCount <= 0 ? 'Нет' : 'Добавить'}
+            {isAdding ? '...' : added ? 'Добавлено' : unavailable ? 'Нет в наличии' : 'Добавить'}
           </button>
         </div>
       </div>

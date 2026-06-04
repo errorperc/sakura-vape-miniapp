@@ -1031,8 +1031,28 @@ app.post('/api/admin/orders', async (request, response) => {
   const quantity = Math.max(1, Math.min(99, Math.floor(numberValue(request.body?.quantity) || 1)));
   const price = Math.max(0, Math.round(numberValue(request.body?.price) || product.price));
   const totalPrice = price * quantity;
+  const customerTelegramId = textValue(request.body?.customerTelegramId, 30);
+  const customerName = textValue(request.body?.customerName, 160);
+
+  if (customerTelegramId && !/^\d{5,20}$/.test(customerTelegramId)) {
+    response.status(400).json({ error: 'Telegram ID клиента должен содержать только цифры.' });
+    return;
+  }
 
   const order = await prisma.$transaction(async (tx) => {
+    const linkedUser = customerTelegramId
+      ? await tx.user.findUnique({ where: { telegramId: BigInt(customerTelegramId) } })
+      : null;
+    const orderUser = linkedUser ?? (customerTelegramId
+      ? await tx.user.create({
+          data: {
+            telegramId: BigInt(customerTelegramId),
+            firstName: customerName || `Клиент ${customerTelegramId}`,
+            username: null,
+          },
+        })
+      : admin);
+
     await tx.product.update({
       where: { id: product.id },
       data: { quantity: Math.max(0, product.quantity - quantity) },
@@ -1040,10 +1060,10 @@ app.post('/api/admin/orders', async (request, response) => {
 
     return tx.order.create({
       data: {
-        userId: admin.id,
+        userId: orderUser.id,
         totalPrice,
         status: statusFromClient(request.body?.status),
-        deliveryName: textValue(request.body?.customerName, 160) || 'Офлайн покупатель',
+        deliveryName: customerName || orderUser.firstName || 'Офлайн покупатель',
         deliveryPhone: '',
         deliveryAddress: textValue(request.body?.address, 320) || 'Офлайн продажа',
         deliveryComment: textValue(request.body?.comment, 500),

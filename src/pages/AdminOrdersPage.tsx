@@ -29,6 +29,7 @@ export function AdminOrdersPage({
 }: AdminOrdersPageProps) {
   const availableProducts = products.filter((product) => product.isActive);
   const [manualOrder, setManualOrder] = useState<ManualOrderDraft>(() => ({
+    customerTelegramId: '',
     customerName: '',
     address: 'Офлайн продажа',
     comment: '',
@@ -77,6 +78,7 @@ export function AdminOrdersPage({
     setSubmitting(false);
     setManualOrder((current) => ({
       ...current,
+      customerTelegramId: '',
       customerName: '',
       comment: '',
       quantity: 1,
@@ -134,6 +136,15 @@ export function AdminOrdersPage({
             value={manualOrder.customerName}
             onChange={(event) => update('customerName', event.target.value)}
             placeholder="Имя клиента"
+          />
+        </label>
+        <label>
+          Telegram ID клиента
+          <input
+            inputMode="numeric"
+            value={manualOrder.customerTelegramId ?? ''}
+            onChange={(event) => update('customerTelegramId', event.target.value)}
+            placeholder="Опционально: ID покупателя"
           />
         </label>
         <div className="form-row">

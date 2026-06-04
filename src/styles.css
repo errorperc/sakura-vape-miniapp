@@ -1530,6 +1530,7 @@ textarea,
   border-radius: 8px;
   background: rgba(9, 9, 15, 0.68);
   color: var(--tg-text);
+  font-size: 16px;
   outline: none;
 }
 
@@ -1566,6 +1567,7 @@ textarea,
   border: 0;
   border-radius: 0;
   background: transparent;
+  font-size: 16px;
   box-shadow: none;
 }
 

@@ -22,11 +22,11 @@ interface ProfilePageProps {
 const getClientStatus = (orders: Order[]) => {
   const total = orders.reduce((sum, order) => sum + order.total, 0);
 
-  if (total >= 10000 || orders.length >= 5) {
+  if (orders.length >= 15 || total >= 20000) {
     return 'VIP';
   }
 
-  if (orders.length >= 2) {
+  if (orders.length >= 10 || total >= 10000) {
     return 'Постоянный клиент';
   }
 
