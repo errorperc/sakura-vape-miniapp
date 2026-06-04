@@ -224,7 +224,7 @@ export function CartPage({
                 required
                 value={form.address}
                 onChange={(event) => update('address', event.target.value)}
-                placeholder="Минск, улица, дом"
+                placeholder="Укажите адрес доставки"
                 autoComplete="street-address"
               />
             </span>
