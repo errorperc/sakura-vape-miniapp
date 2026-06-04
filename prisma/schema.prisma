@@ -46,6 +46,14 @@ model Category {
   @@map("categories")
 }
 
+model ShopSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("shop_settings")
+}
+
 model Product {
   id          String      @id @default(uuid())
   title       String
@@ -59,6 +67,7 @@ model Product {
   nicotine    String      @default("20 мг")
   quantity    Int         @default(0)
   isActive    Boolean     @default(true) @map("is_active")
+  isArchived  Boolean     @default(false) @map("is_archived")
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
   category    Category    @relation(fields: [categoryId], references: [id])

@@ -21,6 +21,7 @@ import {
   notifyManagerAboutOrder,
   updateAdminOrderStatus,
 } from './lib/ordersApi';
+import { getDeliverySettings, saveDeliverySettings } from './lib/settingsApi';
 import { formatUserName, getTelegramUser, haptic, initTelegramApp, isOwnerUser } from './lib/telegram';
 import { getAdminSession } from './lib/teamApi';
 import { AdminOrdersPage } from './pages/AdminOrdersPage';
@@ -171,12 +172,17 @@ function App() {
       if (isMounted) setLoading(false);
     }, 900);
 
-    getCatalog()
-      .then((catalog) => {
-        if (isMounted) applyCatalog(catalog);
-      })
-      .catch(() => {
-        // Mock data keeps the local preview usable when the API is not configured yet.
+    Promise.allSettled([getCatalog(), getDeliverySettings()])
+      .then(([catalogResult, deliveryResult]) => {
+        if (!isMounted) return;
+
+        if (catalogResult.status === 'fulfilled') {
+          applyCatalog(catalogResult.value);
+        }
+
+        if (deliveryResult.status === 'fulfilled') {
+          setDeliverySettings(deliveryResult.value);
+        }
       })
       .finally(() => {
         window.clearTimeout(fallbackTimer);
@@ -402,6 +408,7 @@ function App() {
       haptic('warning');
     } catch (error) {
       showAdminError(error);
+      throw error;
     }
   };
 
@@ -617,9 +624,20 @@ function App() {
     }
   };
 
-  const updateDeliverySettings = (settings: DeliverySettings) => {
-    setDeliverySettings(settings);
-    haptic('success');
+  const updateDeliverySettings = async (settings: DeliverySettings) => {
+    if (user.isDemo) {
+      setDeliverySettings(settings);
+      haptic('success');
+      return;
+    }
+
+    try {
+      const savedSettings = await saveDeliverySettings(settings);
+      setDeliverySettings(savedSettings);
+      haptic('success');
+    } catch (error) {
+      showAdminError(error);
+    }
   };
 
   const renderView = () => {

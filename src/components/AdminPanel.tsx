@@ -32,7 +32,7 @@ interface AdminPanelProps {
   onCreateProduct: (product: Product) => Promise<void>;
   onUpdateProduct: (product: Product) => Promise<void>;
   onDeleteProduct: (productId: string) => Promise<void>;
-  onUpdateDeliverySettings: (settings: DeliverySettings) => void;
+  onUpdateDeliverySettings: (settings: DeliverySettings) => Promise<void>;
   onCreateCategory: (label: string) => Promise<void>;
   onRenameCategory: (id: string, label: string) => Promise<void>;
   onDeleteCategory: (id: string) => Promise<boolean>;
@@ -76,6 +76,7 @@ export function AdminPanel({
   const [deliverySaved, setDeliverySaved] = useState(false);
 
   const isEditing = useMemo(() => Boolean(editingId), [editingId]);
+  const visibleProducts = useMemo(() => products, [products]);
   const tabs = useMemo(
     () => [
       { id: 'catalog' as const, label: 'Каталог', icon: PackageSearch },
@@ -145,10 +146,14 @@ export function AdminPanel({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const submitDeliverySettings = (event: FormEvent<HTMLFormElement>) => {
+  const submitDeliverySettings = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onUpdateDeliverySettings(deliveryDraft);
-    setDeliverySaved(true);
+    try {
+      await onUpdateDeliverySettings(deliveryDraft);
+      setDeliverySaved(true);
+    } catch {
+      setDeliverySaved(false);
+    }
   };
 
   return (
@@ -191,7 +196,7 @@ export function AdminPanel({
               >
                 <PackageSearch size={16} aria-hidden="true" />
                 Товары
-                <em>{products.length}</em>
+                <em>{visibleProducts.length}</em>
               </button>
               <button
                 className={catalogSection === 'categories' ? 'is-active' : ''}
@@ -209,7 +214,7 @@ export function AdminPanel({
             {catalogSection === 'categories' ? (
               <CategoryManagement
                 categories={categories}
-                products={products}
+                products={visibleProducts}
                 onCreate={onCreateCategory}
                 onRename={onRenameCategory}
                 onDelete={onDeleteCategory}
@@ -316,7 +321,7 @@ export function AdminPanel({
                     </button>
                   </div>
                   <div className="admin-products__list">
-                    {products.map((product) => (
+                    {visibleProducts.map((product) => (
                       <article className="admin-product-row" key={product.id}>
                         <img src={publicAsset(product.image)} alt="" loading="lazy" />
                         <div>

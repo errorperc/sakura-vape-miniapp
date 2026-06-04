@@ -21,7 +21,7 @@ app.use((request, response, next) => {
   if (origin === publicAppOrigin) {
     response.header('Access-Control-Allow-Origin', publicAppOrigin);
     response.header('Access-Control-Allow-Headers', 'Content-Type, X-Telegram-Init-Data');
-    response.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+    response.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     response.header('Vary', 'Origin');
   }
 
@@ -207,6 +207,35 @@ const defaultCategories = [
   { id: 'cartridge', label: 'Картриджи' },
   { id: 'accessory', label: 'Аксессуары' },
 ];
+
+const deliverySettingsKey = 'delivery';
+const defaultDeliverySettings = {
+  priceLabel: 'от 0 ₽',
+  courierTitle: 'Курьер',
+  courierDescription: 'Минск и ближайшие районы, обычно в день заказа.',
+  pickupTitle: 'Самовывоз',
+  pickupDescription: 'Пункт выдачи после подтверждения администратором.',
+  timeTitle: 'Время',
+  timeDescription: 'В среднем 60–120 минут по городу.',
+  primaryCondition: 'Доставка от 3000 ₽ бесплатная. До 3000 ₽ стоимость рассчитывается администратором по району.',
+  secondaryCondition: 'Самовывоз доступен после подтверждения наличия товара. При получении потребуется подтвердить 18+.',
+};
+
+const normalizeDeliverySettings = (body: unknown) => {
+  const payload = isRecord(body) ? body : {};
+
+  return {
+    priceLabel: textValue(payload.priceLabel, 60) || defaultDeliverySettings.priceLabel,
+    courierTitle: textValue(payload.courierTitle, 80) || defaultDeliverySettings.courierTitle,
+    courierDescription: textValue(payload.courierDescription, 400) || defaultDeliverySettings.courierDescription,
+    pickupTitle: textValue(payload.pickupTitle, 80) || defaultDeliverySettings.pickupTitle,
+    pickupDescription: textValue(payload.pickupDescription, 400) || defaultDeliverySettings.pickupDescription,
+    timeTitle: textValue(payload.timeTitle, 80) || defaultDeliverySettings.timeTitle,
+    timeDescription: textValue(payload.timeDescription, 400) || defaultDeliverySettings.timeDescription,
+    primaryCondition: textValue(payload.primaryCondition, 700) || defaultDeliverySettings.primaryCondition,
+    secondaryCondition: textValue(payload.secondaryCondition, 700) || defaultDeliverySettings.secondaryCondition,
+  };
+};
 
 const statusToClient: Record<OrderStatus, string> = {
   NEW: 'Новый',
@@ -433,13 +462,32 @@ app.delete('/api/admin/team/:telegramId', async (request, response) => {
   response.status(204).send();
 });
 
+app.get('/api/settings/delivery', async (_request, response) => {
+  const setting = await prisma.shopSetting.findUnique({ where: { key: deliverySettingsKey } });
+  response.json(normalizeDeliverySettings(setting?.value));
+});
+
+app.put('/api/admin/settings/delivery', async (request, response) => {
+  const admin = await requireAdmin(request, response);
+  if (!admin) return;
+
+  const settings = normalizeDeliverySettings(request.body?.settings ?? request.body);
+  const setting = await prisma.shopSetting.upsert({
+    where: { key: deliverySettingsKey },
+    update: { value: settings },
+    create: { key: deliverySettingsKey, value: settings },
+  });
+
+  response.json(normalizeDeliverySettings(setting.value));
+});
+
 app.get('/api/catalog', async (_request, response) => {
   await ensureDefaultCategories();
 
   const [categories, products] = await Promise.all([
     prisma.category.findMany({ orderBy: { createdAt: 'asc' } }),
     prisma.product.findMany({
-      where: { isActive: true },
+      where: { isActive: true, isArchived: false },
       orderBy: { createdAt: 'desc' },
     }),
   ]);
@@ -452,7 +500,7 @@ app.get('/api/catalog', async (_request, response) => {
 
 app.get('/api/products', async (_request, response) => {
   const products = await prisma.product.findMany({
-    where: { isActive: true },
+    where: { isActive: true, isArchived: false },
     orderBy: { createdAt: 'desc' },
   });
   response.json(products.map(serializeProduct));
@@ -466,7 +514,7 @@ app.get('/api/admin/catalog', async (request, response) => {
 
   const [categories, products] = await Promise.all([
     prisma.category.findMany({ orderBy: { createdAt: 'asc' } }),
-    prisma.product.findMany({ orderBy: { createdAt: 'desc' } }),
+    prisma.product.findMany({ where: { isArchived: false }, orderBy: { createdAt: 'desc' } }),
   ]);
 
   response.json({
@@ -479,7 +527,7 @@ app.get('/api/admin/products', async (request, response) => {
   const admin = await requireAdmin(request, response);
   if (!admin) return;
 
-  const products = await prisma.product.findMany({ orderBy: { createdAt: 'desc' } });
+  const products = await prisma.product.findMany({ where: { isArchived: false }, orderBy: { createdAt: 'desc' } });
   response.json(products.map(serializeProduct));
 });
 
@@ -611,10 +659,16 @@ app.delete('/api/admin/products/:id', async (request, response) => {
   const admin = await requireAdmin(request, response);
   if (!admin) return;
 
-  await prisma.product.update({
-    where: { id: request.params.id },
-    data: { isActive: false },
-  });
+  const orderItemsCount = await prisma.orderItem.count({ where: { productId: request.params.id } });
+
+  if (orderItemsCount === 0) {
+    await prisma.product.delete({ where: { id: request.params.id } });
+  } else {
+    await prisma.product.update({
+      where: { id: request.params.id },
+      data: { isActive: false, isArchived: true },
+    });
+  }
 
   response.status(204).send();
 });

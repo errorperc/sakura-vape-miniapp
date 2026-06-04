@@ -623,11 +623,11 @@ p {
   backdrop-filter: blur(14px) saturate(1.08);
   animation: cardEnter 680ms var(--ease-soft) both;
   transition:
-    transform 560ms var(--ease-soft),
-    border-color 560ms ease,
-    background 560ms ease,
-    box-shadow 560ms ease,
-    opacity 560ms ease;
+    transform 760ms var(--ease-soft),
+    border-color 760ms ease,
+    background 760ms ease,
+    box-shadow 760ms ease,
+    opacity 760ms ease;
   will-change: transform;
 }
 
@@ -673,8 +673,8 @@ p {
   object-fit: contain;
   filter: drop-shadow(0 12px 15px rgba(0, 0, 0, 0.34));
   transition:
-    transform 680ms var(--ease-soft),
-    filter 560ms ease;
+    transform 860ms var(--ease-soft),
+    filter 760ms ease;
 }
 
 .stock-pill {
@@ -847,15 +847,22 @@ p {
 }
 
 @media (hover: hover) {
-  .product-card:hover,
+  .product-card:hover {
+    border-color: rgba(255, 63, 159, 0.16);
+    transform: translateY(-1px);
+    box-shadow:
+      0 12px 28px rgba(0, 0, 0, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
   .cart-item:hover,
   .admin-product-row:hover {
-    border-color: rgba(255, 63, 159, 0.22);
-    transform: translateY(-2px);
+    border-color: rgba(255, 63, 159, 0.14);
+    transform: translateY(-1px);
   }
 
   .product-card:hover .product-card__media img {
-    transform: translateY(-3px) scale(1.018);
+    transform: translateY(-1.5px) scale(1.01);
   }
 }
 
@@ -2302,10 +2309,21 @@ textarea:focus {
   grid-template-columns: 48px minmax(0, 1fr) auto auto;
   padding: 8px;
   transition:
-    transform 520ms var(--ease-soft),
-    border-color 520ms var(--ease-soft),
-    background 520ms var(--ease-soft),
-    box-shadow 520ms var(--ease-soft);
+    transform 760ms var(--ease-soft),
+    border-color 760ms ease,
+    background 760ms ease,
+    box-shadow 760ms ease;
+}
+
+@media (hover: hover) {
+  .admin-product-row:hover {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.032), transparent 48%),
+      rgba(24, 24, 34, 0.74);
+    box-shadow:
+      0 10px 22px rgba(0, 0, 0, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  }
 }
 
 .admin-product-row img {
