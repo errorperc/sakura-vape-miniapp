@@ -1,6 +1,6 @@
 import { Check, LoaderCircle, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, MouseEvent } from 'react';
 import { publicAsset } from '../lib/assets';
 import type { Product } from '../types';
 
@@ -36,6 +36,8 @@ const getStockClassName = (product: Product) => {
 export function ProductCard({ product, onAddToCart }: ProductCardProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [added, setAdded] = useState(false);
+  const [flyStyle, setFlyStyle] = useState<CSSProperties | null>(null);
+  const [flyKey, setFlyKey] = useState(0);
   const stockClassName = getStockClassName(product);
   const disabled = !product.isActive || product.stockCount <= 0 || isAdding;
 
@@ -48,9 +50,32 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
     return () => window.clearTimeout(timer);
   }, [added]);
 
-  const handleAdd = () => {
+  const launchCartFly = (event: MouseEvent<HTMLButtonElement>) => {
+    const buttonRect = event.currentTarget.getBoundingClientRect();
+    const target = document.querySelector<HTMLElement>('[data-cart-target="true"] .bottom-nav__icon');
+    const targetRect = target?.getBoundingClientRect();
+
+    if (!targetRect) {
+      return;
+    }
+
+    setFlyStyle({
+      '--fly-start-x': `${buttonRect.left + buttonRect.width / 2}px`,
+      '--fly-start-y': `${buttonRect.top + buttonRect.height / 2}px`,
+      '--fly-end-x': `${targetRect.left + targetRect.width / 2}px`,
+      '--fly-end-y': `${targetRect.top + targetRect.height / 2}px`,
+    } as CSSProperties);
+    setFlyKey((current) => current + 1);
+    window.setTimeout(() => setFlyStyle(null), 860);
+  };
+
+  const handleAdd = (event: MouseEvent<HTMLButtonElement>) => {
     setIsAdding(true);
     const success = onAddToCart(product);
+
+    if (success) {
+      launchCartFly(event);
+    }
 
     window.setTimeout(() => {
       setIsAdding(false);
@@ -62,7 +87,9 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
     <article className={`product-card product-card--${stockClassName}`} style={{ '--accent': product.accent } as CSSProperties}>
       <div className="product-card__media">
         <span className="product-card__accent" aria-hidden="true" />
-        <img src={publicAsset(product.image)} alt={product.name} loading="lazy" />
+        <span className="product-card__image-shell">
+          <img src={publicAsset(product.image)} alt={product.name} loading="lazy" />
+        </span>
         <span className={`stock-pill stock-pill--${stockClassName}`}>{getStockLabel(product)}</span>
       </div>
 
@@ -99,6 +126,11 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
           </button>
         </div>
       </div>
+      {flyStyle ? (
+        <span className="product-card__fly" style={flyStyle} key={flyKey} aria-hidden="true">
+          <img src={publicAsset(product.image)} alt="" />
+        </span>
+      ) : null}
     </article>
   );
 }

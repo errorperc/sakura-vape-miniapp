@@ -31,15 +31,15 @@ const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL ?? new URL('/api/telegram/we
 
 await callBotApi('setMyCommands', {
   commands: [
-    { command: 'start', description: 'Открыть Sakura Vape' },
-    { command: 'shop', description: 'Перейти в магазин' },
+    { command: 'start', description: 'Начать покупки' },
+    { command: 'shop', description: 'Открыть Sakura Vape' },
   ],
 });
 
 await callBotApi('setChatMenuButton', {
   menu_button: {
     type: 'web_app',
-    text: 'Открыть магазин',
+    text: 'Начать покупки',
     web_app: { url: miniAppUrl },
   },
 });

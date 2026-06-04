@@ -38,6 +38,7 @@ export function BottomNav({ activeView, isAdmin, cartCount, onNavigate }: Bottom
             onClick={() => onNavigate(item.view)}
             aria-label={item.label}
             aria-current={isActive ? 'page' : undefined}
+            data-cart-target={item.view === 'cart' ? 'true' : undefined}
           >
             <span className="bottom-nav__active-glow" aria-hidden="true" />
             <span className="bottom-nav__icon">

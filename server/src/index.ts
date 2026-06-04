@@ -120,12 +120,12 @@ const callTelegramApi = async (method: string, body: Record<string, unknown>) =>
 const sendShopLaunchMessage = async (chatId: number | string) => {
   return callTelegramApi('sendMessage', {
     chat_id: chatId,
-    text: 'Sakura Vape открыт на нашем сервере. Нажмите кнопку ниже, чтобы перейти в магазин.',
+    text: 'Sakura Vape уже открыт. Начать покупки можно тут — нажмите кнопку ниже.',
     reply_markup: {
       inline_keyboard: [
         [
           {
-            text: 'Открыть магазин',
+            text: 'Начать покупки',
             web_app: { url: publicAppUrl },
           },
         ],
