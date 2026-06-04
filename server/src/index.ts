@@ -200,14 +200,6 @@ const serializeTeamMember = (member: {
   createdAt: member.createdAt.toISOString(),
 });
 
-const defaultCategories = [
-  { id: 'disposable', label: 'Одноразки' },
-  { id: 'liquid', label: 'Жидкости' },
-  { id: 'pod', label: 'POD-системы' },
-  { id: 'cartridge', label: 'Картриджи' },
-  { id: 'accessory', label: 'Аксессуары' },
-];
-
 const deliverySettingsKey = 'delivery';
 const defaultDeliverySettings = {
   priceLabel: 'от 0 ₽',
@@ -268,18 +260,6 @@ const makeCategoryId = (label: string) => {
       .replace(/[^\p{L}\p{N}]+/gu, '-')
       .replace(/^-|-$/g, '')
       .slice(0, 48) || `category-${Date.now()}`
-  );
-};
-
-const ensureDefaultCategories = async () => {
-  await Promise.all(
-    defaultCategories.map((category) =>
-      prisma.category.upsert({
-        where: { id: category.id },
-        update: { label: category.label },
-        create: category,
-      }),
-    ),
   );
 };
 
@@ -482,8 +462,6 @@ app.put('/api/admin/settings/delivery', async (request, response) => {
 });
 
 app.get('/api/catalog', async (_request, response) => {
-  await ensureDefaultCategories();
-
   const [categories, products] = await Promise.all([
     prisma.category.findMany({ orderBy: { createdAt: 'asc' } }),
     prisma.product.findMany({
@@ -509,8 +487,6 @@ app.get('/api/products', async (_request, response) => {
 app.get('/api/admin/catalog', async (request, response) => {
   const admin = await requireAdmin(request, response);
   if (!admin) return;
-
-  await ensureDefaultCategories();
 
   const [categories, products] = await Promise.all([
     prisma.category.findMany({ orderBy: { createdAt: 'asc' } }),
