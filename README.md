@@ -76,3 +76,83 @@ npm run server:dev
 ```
 
 Важно: проверка администратора только на frontend не является защитой для реального магазина. Перед запуском продаж backend должен валидировать Telegram `initData`.
+
+## Production-сервер в Docker
+
+Для первого запуска достаточно Ubuntu 24.04, 1 vCPU, 2 GB RAM и 30 GB NVMe. На такой машине проект использует ограничения памяти для контейнеров и создаёт 2 GB swap. Для роста и более спокойных сборок рекомендуется 2 vCPU и 4 GB RAM.
+
+Перед запуском направьте DNS `A`-запись домена, например `shop.example.com`, на IP сервера. Telegram Mini App требует публичный HTTPS URL. Caddy автоматически получит и будет продлевать сертификат, если порты `80` и `443` открыты.
+
+Первичная подготовка Ubuntu:
+
+```bash
+sudo bash scripts/bootstrap-ubuntu.sh
+sudo git clone https://github.com/errorperc/sakura-vape-miniapp.git /opt/sakura-vape
+cd /opt/sakura-vape
+sudo cp .env.production.example .env
+sudo nano .env
+```
+
+Для пароля PostgreSQL используйте случайную hex-строку без специальных URL-символов:
+
+```bash
+openssl rand -hex 32
+```
+
+Минимальное содержимое `.env`:
+
+```env
+APP_DOMAIN=shop.example.com
+POSTGRES_DB=sakura_vape
+POSTGRES_USER=sakura
+POSTGRES_PASSWORD=СЛУЧАЙНЫЙ_HEX_ПАРОЛЬ
+ADMIN_TELEGRAM_ID=ВАШ_TELEGRAM_ID
+VITE_ADMIN_TELEGRAM_IDS=ВАШ_TELEGRAM_ID
+PORT=4000
+```
+
+Откройте firewall только после проверки SSH-доступа:
+
+```bash
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw allow 443/udp
+sudo ufw enable
+```
+
+Первый запуск:
+
+```bash
+cd /opt/sakura-vape
+sudo docker compose up -d --build --wait
+sudo docker compose run --rm api npm run db:seed
+sudo docker compose ps
+sudo docker compose logs --tail=100
+```
+
+Обновление после новых изменений в GitHub:
+
+```bash
+cd /opt/sakura-vape
+sudo bash scripts/deploy-server.sh
+```
+
+PostgreSQL не опубликован наружу и доступен только контейнеру API. Данные базы, сертификаты Caddy и конфигурация сохраняются в Docker volumes.
+
+Резервная копия базы:
+
+```bash
+cd /opt/sakura-vape
+sudo docker compose exec -T postgres pg_dump -U sakura sakura_vape | gzip > "sakura-$(date +%F).sql.gz"
+```
+
+Для деплоя одной кнопкой в GitHub Actions добавьте repository secrets:
+
+```text
+SERVER_HOST     IP сервера
+SERVER_USER     SSH-пользователь
+SERVER_SSH_KEY  приватный SSH-ключ для деплоя
+```
+
+После этого запустите workflow `Deploy production server` вручную в разделе Actions.

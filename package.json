@@ -11,7 +11,10 @@
     "server:dev": "tsx --env-file-if-exists=.env server/src/index.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "tsx --env-file-if-exists=.env prisma/seed.ts"
+    "db:seed": "tsx --env-file-if-exists=.env prisma/seed.ts",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up -d --build --wait",
+    "docker:logs": "docker compose logs -f --tail=100"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

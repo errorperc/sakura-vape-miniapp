@@ -1,0 +1,28 @@
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+	}
+
+	@api path /api/*
+	handle @api {
+		reverse_proxy api:4000
+	}
+
+	@static path /assets/* /products/*
+	header @static Cache-Control "public, max-age=604800"
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
