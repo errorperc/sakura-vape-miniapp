@@ -1,0 +1,38 @@
+{
+  "name": "sakura-vape-miniapp",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "bot:configure": "node scripts/configure-telegram-bot.mjs",
+    "server:dev": "tsx --env-file-if-exists=.env server/src/index.ts",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx --env-file-if-exists=.env prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "@twa-dev/sdk": "^8.0.2",
+    "express": "^5.2.1",
+    "lucide-react": "^1.17.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "prisma": "^6.19.3",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
+  }
+}

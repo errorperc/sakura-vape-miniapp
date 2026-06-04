@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+enum ProductCategory {
+  disposable
+  liquid
+  pod
+  cartridge
+  accessory
+}
+
+enum OrderStatus {
+  NEW
+  PROCESSING
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCELED
+}
+
+model User {
+  id         String     @id @default(uuid())
+  telegramId BigInt     @unique @map("telegram_id")
+  firstName  String     @map("first_name")
+  username   String?
+  photoUrl   String?    @map("photo_url")
+  role       UserRole   @default(user)
+  createdAt  DateTime   @default(now()) @map("created_at")
+  orders     Order[]
+  stockLogs  StockLog[] @relation("AdminStockLogs")
+
+  @@map("users")
+}
+
+model Product {
+  id          String          @id @default(uuid())
+  title       String
+  brand       String
+  category    ProductCategory
+  description String
+  flavor      String
+  price       Int
+  imageUrl    String          @map("image_url")
+  quantity    Int             @default(0)
+  isActive    Boolean         @default(true) @map("is_active")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  orderItems  OrderItem[]
+  stockLogs   StockLog[]
+
+  @@index([category])
+  @@index([brand])
+  @@map("products")
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  userId          String      @map("user_id")
+  totalPrice      Int         @map("total_price")
+  status          OrderStatus @default(NEW)
+  deliveryName    String      @map("delivery_name")
+  deliveryPhone   String      @map("delivery_phone")
+  deliveryAddress String      @map("delivery_address")
+  deliveryComment String?     @map("delivery_comment")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  user            User        @relation(fields: [userId], references: [id])
+  items           OrderItem[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id              String  @id @default(uuid())
+  orderId         String  @map("order_id")
+  productId       String  @map("product_id")
+  productTitle    String  @map("product_title")
+  quantity        Int
+  priceAtPurchase Int     @map("price_at_purchase")
+  order           Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product         Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+model StockLog {
+  id          String   @id @default(uuid())
+  productId   String   @map("product_id")
+  adminId     String   @map("admin_id")
+  oldQuantity Int      @map("old_quantity")
+  newQuantity Int      @map("new_quantity")
+  reason      String
+  createdAt   DateTime @default(now()) @map("created_at")
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  admin       User     @relation("AdminStockLogs", fields: [adminId], references: [id])
+
+  @@index([productId])
+  @@index([adminId])
+  @@map("stock_logs")
+}
