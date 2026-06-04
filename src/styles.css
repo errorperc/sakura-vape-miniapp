@@ -1457,6 +1457,63 @@ textarea,
   box-shadow: none;
 }
 
+.address-field {
+  position: relative;
+}
+
+.field-error {
+  display: block;
+  margin-top: 6px;
+  color: #ff8aa9;
+  font-size: 0.68rem;
+  font-weight: 720;
+}
+
+.address-suggestions {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.address-suggestions button {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
+    rgba(9, 9, 15, 0.72);
+  color: var(--tg-text);
+  text-align: left;
+  transition:
+    transform 420ms var(--ease-soft),
+    border-color 420ms ease,
+    background 420ms ease;
+}
+
+.address-suggestions button strong {
+  color: #ffd6e9;
+  font-size: 0.76rem;
+}
+
+.address-suggestions button span {
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+
+@media (hover: hover) {
+  .address-suggestions button:hover {
+    border-color: rgba(255, 91, 166, 0.2);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
+      rgba(255, 45, 141, 0.1);
+    transform: translateY(-1px);
+  }
+}
+
 .checkout-summary {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

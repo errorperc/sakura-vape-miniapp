@@ -18,7 +18,13 @@ x-api-environment: &api-environment
 
 services:
   gateway:
-    image: caddy:2-alpine
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+      args:
+        VITE_API_BASE_URL: https://${APP_DOMAIN}
+        VITE_ADMIN_TELEGRAM_IDS: ${ADMIN_TELEGRAM_ID}
+        VITE_OWNER_TELEGRAM_ID: ${OWNER_TELEGRAM_ID}
     restart: unless-stopped
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN in .env}

@@ -19,36 +19,25 @@ ADMIN_TELEGRAM_ID="ВАШ_TELEGRAM_ID"
 
 После изменения `.env` перезапустите Vite.
 
-## Демо на GitHub Pages
+## Хостинг без GitHub Pages
 
-В проект уже добавлен workflow `.github/workflows/deploy-pages.yml`. Он автоматически собирает и публикует приложение после каждого push в `main`.
+Mini App можно полностью хостить на вашем VPS: Caddy отдаёт React-приложение на корне HTTPS-домена, а `/api/*` проксирует в Express backend. Репозиторий при этом может быть публичным или приватным, потому что пользователи открывают не GitHub Pages, а ваш сервер.
 
-> GitHub Pages подходит только для демонстрации прототипа. По официальным ограничениям GitHub Pages нельзя использовать как хостинг реального интернет-магазина или сервиса, направленного на коммерческие транзакции. Для рабочего магазина используйте VPS или коммерческий hosting.
-
-1. Создайте публичный репозиторий `sakura-vape-miniapp`.
-2. Загрузите проект в ветку `main`.
-3. В GitHub откройте `Settings` → `Pages` → `Source` и выберите `GitHub Actions`.
-4. В `Settings` → `Secrets and variables` → `Actions` → `Variables` добавьте:
+Текущий временный URL:
 
 ```text
-VITE_ADMIN_TELEGRAM_IDS=ВАШ_TELEGRAM_ID
-```
-
-После успешного workflow приложение будет доступно по адресу:
-
-```text
-https://ВАШ_GITHUB_LOGIN.github.io/sakura-vape-miniapp/
+https://api.185-246-217-69.sslip.io/
 ```
 
 ## Создание и настройка Telegram-бота
 
 1. Откройте `@BotFather` и выполните `/newbot`.
 2. Сохраните выданный токен. Никогда не публикуйте его в GitHub.
-3. Укажите токен и адрес GitHub Pages только в текущем терминале:
+3. Укажите токен и HTTPS-адрес Mini App только в текущем терминале:
 
 ```powershell
 $env:TELEGRAM_BOT_TOKEN="ТОКЕН_ОТ_BOTFATHER"
-$env:TELEGRAM_MINI_APP_URL="https://ВАШ_GITHUB_LOGIN.github.io/sakura-vape-miniapp/"
+$env:TELEGRAM_MINI_APP_URL="https://api.185-246-217-69.sslip.io/"
 npm run bot:configure
 ```
 
@@ -60,13 +49,11 @@ npm run bot:configure
 /mybots → ваш бот → Bot Settings → Configure Mini App → Enable Mini App
 ```
 
-и укажите тот же HTTPS-адрес GitHub Pages.
+и укажите тот же HTTPS-адрес Mini App.
 
-## Что работает без сервера
+## Backend локально
 
-GitHub Pages бесплатно размещает интерфейс Mini App. В текущем прототипе товары, заказы, настройки доставки и загруженные администратором фотографии хранятся в `localStorage` конкретного устройства.
-
-Для общей базы товаров, заказов всех клиентов, безопасной проверки Telegram-пользователя, уведомлений бота и общего хранения фотографий нужен backend. В проекте уже есть заготовки Express, Prisma и PostgreSQL:
+Для общей базы товаров, заказов всех клиентов, безопасной проверки Telegram-пользователя, уведомлений бота и общего хранения фотографий используется Express, Prisma и PostgreSQL:
 
 ```powershell
 npm run db:generate
@@ -75,13 +62,13 @@ npm run db:seed
 npm run server:dev
 ```
 
-Важно: проверка администратора только на frontend не является защитой для реального магазина. Перед запуском продаж backend должен валидировать Telegram `initData`.
+Важно: админские действия на production проверяются backend-ом через Telegram `initData`.
 
 ## Production-сервер в Docker
 
 Для первого запуска достаточно Ubuntu 24.04, 1 vCPU, 2 GB RAM и 30 GB NVMe. На такой машине проект использует ограничения памяти для контейнеров и создаёт 2 GB swap. Для роста и более спокойных сборок рекомендуется 2 vCPU и 4 GB RAM.
 
-Frontend остаётся на GitHub Pages. Сервер размещает API/PostgreSQL и HTTPS-шлюз. Временно можно использовать имя `api.185-246-217-69.sslip.io`, которое автоматически указывает на IP сервера. Позже лучше заменить его собственным API-поддоменом.
+Frontend и API можно размещать на одном сервере без GitHub Pages. Caddy отдаёт React-приложение на корне домена, а `/api/*` проксирует в backend. Временно можно использовать имя `api.185-246-217-69.sslip.io`, которое автоматически указывает на IP сервера. Позже лучше заменить его собственным доменом.
 
 Первичная подготовка Ubuntu:
 
@@ -103,7 +90,7 @@ openssl rand -hex 32
 
 ```env
 APP_DOMAIN=api.185-246-217-69.sslip.io
-PUBLIC_APP_URL=https://errorperc.github.io/sakura-vape-miniapp/
+PUBLIC_APP_URL=https://api.185-246-217-69.sslip.io/
 POSTGRES_DB=sakura_vape
 POSTGRES_USER=sakura
 POSTGRES_PASSWORD=СЛУЧАЙНЫЙ_HEX_ПАРОЛЬ

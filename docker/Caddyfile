@@ -13,7 +13,9 @@
 	}
 
 	handle {
-		redir {$PUBLIC_APP_URL} 302
+		root * /srv/app
+		try_files {path} /index.html
+		file_server
 	}
 
 	log {

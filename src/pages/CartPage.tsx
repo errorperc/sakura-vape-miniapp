@@ -14,8 +14,9 @@ import {
 import { useEffect, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import { EmptyState } from '../components/EmptyState';
+import { fetchAddressSuggestions, getAddressValidationMessage } from '../lib/addressApi';
 import { publicAsset } from '../lib/assets';
-import type { CheckoutDraft, DeliverySettings, Order, Product } from '../types';
+import type { AddressSuggestion, CheckoutDraft, DeliverySettings, Order, Product } from '../types';
 
 export interface ResolvedCartItem {
   product: Product;
@@ -49,6 +50,8 @@ export function CartPage({
 }: CartPageProps) {
   const [form, setForm] = useState<CheckoutDraft>(draft);
   const [submitting, setSubmitting] = useState(false);
+  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
+  const [addressError, setAddressError] = useState('');
 
   useEffect(() => {
     setForm(draft);
@@ -56,14 +59,46 @@ export function CartPage({
 
   const update = (key: keyof CheckoutDraft, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
+    if (key === 'address') setAddressError('');
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const nextAddressError = getAddressValidationMessage(form.address);
+    if (nextAddressError) {
+      setAddressError(nextAddressError);
+      return;
+    }
+
     setSubmitting(true);
     await onCheckout(form);
     setSubmitting(false);
   };
+
+  useEffect(() => {
+    const query = form.address.trim();
+    let isActive = true;
+
+    if (query.length < 3) {
+      setAddressSuggestions([]);
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      fetchAddressSuggestions(query)
+        .then((suggestions) => {
+          if (isActive) setAddressSuggestions(suggestions);
+        })
+        .catch(() => {
+          if (isActive) setAddressSuggestions([]);
+        });
+    }, 260);
+
+    return () => {
+      isActive = false;
+      window.clearTimeout(timer);
+    };
+  }, [form.address]);
 
   if (lastOrder && items.length === 0) {
     return (
@@ -181,12 +216,37 @@ export function CartPage({
               <input required value={form.name} onChange={(event) => update('name', event.target.value)} />
             </span>
           </label>
-          <label>
+          <label className="address-field">
             Адрес
             <span className="field-control">
               <MapPin size={17} aria-hidden="true" />
-              <input required value={form.address} onChange={(event) => update('address', event.target.value)} />
+              <input
+                required
+                value={form.address}
+                onChange={(event) => update('address', event.target.value)}
+                placeholder="Минск, улица, дом"
+                autoComplete="street-address"
+              />
             </span>
+            {addressError ? <small className="field-error">{addressError}</small> : null}
+            {addressSuggestions.length > 0 ? (
+              <div className="address-suggestions" role="listbox" aria-label="Подсказки адреса">
+                {addressSuggestions.map((suggestion) => (
+                  <button
+                    type="button"
+                    key={`${suggestion.value}-${suggestion.source}`}
+                    onClick={() => {
+                      update('address', suggestion.value);
+                      setAddressSuggestions([]);
+                      setAddressError('');
+                    }}
+                  >
+                    <strong>{suggestion.label}</strong>
+                    <span>{suggestion.value}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </label>
           <label>
             Комментарий

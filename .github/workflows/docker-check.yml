@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       APP_DOMAIN: api.185-246-217-69.sslip.io
-      PUBLIC_APP_URL: https://errorperc.github.io/sakura-vape-miniapp/
+      PUBLIC_APP_URL: https://api.185-246-217-69.sslip.io/
       POSTGRES_DB: sakura_vape
       POSTGRES_USER: sakura
       POSTGRES_PASSWORD: 0123456789abcdef0123456789abcdef

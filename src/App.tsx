@@ -13,6 +13,7 @@ import {
   renameAdminCategory,
   updateAdminProduct,
 } from './lib/catalogApi';
+import { getAddressValidationMessage } from './lib/addressApi';
 import {
   createCustomerOrder,
   createManualOrder as createManualOrderRequest,
@@ -499,6 +500,13 @@ function App() {
   };
 
   const checkout = async (draft: CheckoutDraft) => {
+    const addressError = getAddressValidationMessage(draft.address);
+    if (addressError) {
+      setCartWarning(addressError);
+      haptic('warning');
+      return false;
+    }
+
     const unavailableItem = resolvedCart.find(
       ({ product, quantity }) => !product.isActive || product.stockCount <= 0 || quantity > product.stockCount,
     );

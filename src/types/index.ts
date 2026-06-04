@@ -67,6 +67,12 @@ export interface DeliveryDetails {
   comment: string;
 }
 
+export interface AddressSuggestion {
+  label: string;
+  value: string;
+  source: string;
+}
+
 export interface DeliverySettings {
   priceLabel: string;
   courierTitle: string;

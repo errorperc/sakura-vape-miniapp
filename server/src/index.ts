@@ -9,9 +9,10 @@ const botToken = process.env.TELEGRAM_BOT_TOKEN ?? '';
 const ownerTelegramId = process.env.OWNER_TELEGRAM_ID ?? process.env.ADMIN_TELEGRAM_ID ?? '';
 const fallbackManagerTelegramId = process.env.MANAGER_TELEGRAM_ID ?? ownerTelegramId;
 const publicAppOrigin = new URL(
-  process.env.PUBLIC_APP_URL ?? 'https://errorperc.github.io/sakura-vape-miniapp/',
+  process.env.PUBLIC_APP_URL ?? 'https://api.185-246-217-69.sslip.io/',
 ).origin;
 const notificationCooldowns = new Map<number, number>();
+const addressSuggestionCache = new Map<string, { expiresAt: number; suggestions: AddressSuggestion[] }>();
 
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '8mb' }));
@@ -40,6 +41,28 @@ interface TelegramInitUser {
   username?: string;
 }
 
+interface AddressSuggestion {
+  label: string;
+  value: string;
+  source: string;
+}
+
+interface NominatimResult {
+  display_name?: string;
+  type?: string;
+  address?: {
+    road?: string;
+    pedestrian?: string;
+    footway?: string;
+    house_number?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+    suburb?: string;
+    city_district?: string;
+  };
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null;
 };
@@ -51,6 +74,20 @@ const textValue = (value: unknown, maxLength = 200) => {
 const numberValue = (value: unknown) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
+};
+
+const normalizeAddressText = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+const isProbablyDeliveryAddress = (value: string) => {
+  const normalized = normalizeAddressText(value);
+
+  if (normalized.length < 8 || normalized.length > 320) return false;
+  if (!/[a-zа-яё]{3,}/i.test(normalized)) return false;
+  if (!/\d/.test(normalized)) return false;
+  if (/(.)\1{5,}/i.test(normalized.replace(/\s/g, ''))) return false;
+  if (!/[,\s]/.test(normalized)) return false;
+
+  return true;
 };
 
 const escapeHtml = (value: string) => {
@@ -226,6 +263,24 @@ const normalizeDeliverySettings = (body: unknown) => {
     timeDescription: textValue(payload.timeDescription, 400) || defaultDeliverySettings.timeDescription,
     primaryCondition: textValue(payload.primaryCondition, 700) || defaultDeliverySettings.primaryCondition,
     secondaryCondition: textValue(payload.secondaryCondition, 700) || defaultDeliverySettings.secondaryCondition,
+  };
+};
+
+const toAddressSuggestion = (result: NominatimResult): AddressSuggestion | null => {
+  const address = result.address ?? {};
+  const street = address.road ?? address.pedestrian ?? address.footway ?? '';
+  const house = address.house_number ?? '';
+  const city = address.city ?? address.town ?? address.village ?? 'Минск';
+  const area = address.suburb ?? address.city_district ?? '';
+  const parts = [city, street, house].filter(Boolean);
+  const value = parts.length >= 2 ? parts.join(', ') : textValue(result.display_name, 180);
+
+  if (!value || value.length < 6) return null;
+
+  return {
+    label: [street && house ? `${street}, ${house}` : street || value, area || city].filter(Boolean).join(' · '),
+    value,
+    source: result.type ?? 'address',
   };
 };
 
@@ -459,6 +514,60 @@ app.put('/api/admin/settings/delivery', async (request, response) => {
   });
 
   response.json(normalizeDeliverySettings(setting.value));
+});
+
+app.get('/api/address/suggest', async (request, response) => {
+  const query = normalizeAddressText(textValue(request.query.q, 120));
+
+  if (query.length < 3 || !/[a-zа-яё]{2,}/i.test(query)) {
+    response.json([]);
+    return;
+  }
+
+  const cacheKey = query.toLowerCase();
+  const cached = addressSuggestionCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    response.json(cached.suggestions);
+    return;
+  }
+
+  try {
+    const url = new URL('https://nominatim.openstreetmap.org/search');
+    url.searchParams.set('format', 'jsonv2');
+    url.searchParams.set('limit', '6');
+    url.searchParams.set('addressdetails', '1');
+    url.searchParams.set('countrycodes', 'by');
+    url.searchParams.set('accept-language', 'ru');
+    url.searchParams.set('q', query.includes('Минск') ? query : `Минск ${query}`);
+
+    const geoResponse = await fetch(url, {
+      headers: {
+        accept: 'application/json',
+        'user-agent': 'Sakura Vape MiniApp address autocomplete',
+      },
+      signal: AbortSignal.timeout(4500),
+    });
+
+    if (!geoResponse.ok) {
+      response.json([]);
+      return;
+    }
+
+    const results = (await geoResponse.json()) as NominatimResult[];
+    const suggestions = results
+      .map(toAddressSuggestion)
+      .filter((suggestion): suggestion is AddressSuggestion => suggestion !== null)
+      .filter((suggestion, index, list) => list.findIndex((item) => item.value === suggestion.value) === index)
+      .slice(0, 5);
+
+    addressSuggestionCache.set(cacheKey, {
+      suggestions,
+      expiresAt: Date.now() + 1000 * 60 * 60,
+    });
+    response.json(suggestions);
+  } catch {
+    response.json([]);
+  }
 });
 
 app.get('/api/catalog', async (_request, response) => {
@@ -776,9 +885,15 @@ app.post('/api/orders', async (request, response) => {
   const order = isRecord(request.body?.order) ? request.body.order : {};
   const requestedItems = Array.isArray(order.items) ? order.items : [];
   const delivery = isRecord(order.delivery) ? order.delivery : {};
+  const deliveryAddress = normalizeAddressText(textValue(delivery.address, 320));
 
   if (requestedItems.length === 0 || requestedItems.length > 15) {
     response.status(400).json({ error: 'Order items are required.' });
+    return;
+  }
+
+  if (!isProbablyDeliveryAddress(deliveryAddress)) {
+    response.status(400).json({ error: 'Введите понятный адрес с улицей и номером дома.' });
     return;
   }
 
@@ -821,7 +936,7 @@ app.post('/api/orders', async (request, response) => {
         status: OrderStatus.NEW,
         deliveryName: textValue(delivery.name, 160) || user.firstName,
         deliveryPhone: '',
-        deliveryAddress: textValue(delivery.address, 320) || 'Не указан',
+        deliveryAddress,
         deliveryComment: textValue(delivery.comment, 500),
         items: { create: items },
       },
