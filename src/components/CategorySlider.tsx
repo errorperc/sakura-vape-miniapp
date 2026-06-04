@@ -85,10 +85,12 @@ export function CategorySlider({ filters, activeFilterId, onChange }: CategorySl
             aria-pressed={isActive}
             onClick={(event) => {
               onChange(filter.id);
-              event.currentTarget.scrollIntoView({
+              const slider = sliderRef.current;
+              const chip = event.currentTarget;
+
+              slider?.scrollTo({
                 behavior: 'smooth',
-                block: 'nearest',
-                inline: 'center',
+                left: chip.offsetLeft - (slider.clientWidth - chip.offsetWidth) / 2,
               });
             }}
           >

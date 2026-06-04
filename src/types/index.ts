@@ -17,7 +17,12 @@ export interface TeamMember {
   createdAt: string;
 }
 
-export type ProductCategory = 'disposable' | 'liquid' | 'pod' | 'cartridge' | 'accessory';
+export type ProductCategory = string;
+
+export interface CatalogCategory {
+  id: ProductCategory;
+  label: string;
+}
 
 export type StockStatus = 'in_stock' | 'low_stock' | 'out_of_stock';
 

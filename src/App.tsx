@@ -2,7 +2,7 @@ import { Loader2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { AdminPanel } from './components/AdminPanel';
 import { BottomNav } from './components/BottomNav';
-import { filters, initialDeliverySettings, initialOrders, initialProducts } from './data/mockData';
+import { initialCategories, initialDeliverySettings, initialOrders, initialProducts } from './data/mockData';
 import { notifyManagerAboutOrder } from './lib/ordersApi';
 import { formatUserName, getTelegramUser, haptic, initTelegramApp, isOwnerUser } from './lib/telegram';
 import { getAdminSession } from './lib/teamApi';
@@ -11,11 +11,12 @@ import { DeliveryPage } from './pages/DeliveryPage';
 import { HomePage } from './pages/HomePage';
 import { ProfilePage } from './pages/ProfilePage';
 import { useCartStore } from './store/cartStore';
-import type { AdminSession, CheckoutDraft, DeliverySettings, Order, OrderStatus, Product, StockStatus, View } from './types';
+import type { AdminSession, CatalogCategory, CatalogFilter, CheckoutDraft, DeliverySettings, Order, OrderStatus, Product, StockStatus, View } from './types';
 
 const storageKeys = {
   age: 'vape-shop-age-confirmed',
   products: 'vape-shop-products',
+  categories: 'vape-shop-categories',
   orders: 'vape-shop-orders',
   delivery: 'vape-shop-delivery-draft',
   deliverySettings: 'vape-shop-delivery-settings',
@@ -83,6 +84,9 @@ function App() {
   const [products, setProducts] = useState<Product[]>(() =>
     normalizeProducts(readStorage(storageKeys.products, initialProducts)),
   );
+  const [categories, setCategories] = useState<CatalogCategory[]>(() =>
+    readStorage(storageKeys.categories, initialCategories),
+  );
   const [orders, setOrders] = useState<Order[]>(() => readStorage(storageKeys.orders, initialOrders));
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [cartWarning, setCartWarning] = useState('');
@@ -125,6 +129,10 @@ function App() {
   }, [products]);
 
   useEffect(() => {
+    writeStorage(storageKeys.categories, categories);
+  }, [categories]);
+
+  useEffect(() => {
     writeStorage(storageKeys.orders, orders);
   }, [orders]);
 
@@ -142,8 +150,40 @@ function App() {
     }
   }, [isAdmin, view]);
 
+  const catalogFilters = useMemo<CatalogFilter[]>(() => {
+    const visibleProducts = products.filter((product) => product.isActive);
+    const populatedCategories = categories.filter((category) =>
+      visibleProducts.some((product) => product.category === category.id),
+    );
+    const brands = [...new Set(visibleProducts.map((product) => product.brand.trim()).filter(Boolean))].sort(
+      (left, right) => left.localeCompare(right, 'ru'),
+    );
+
+    return [
+      { id: 'all', label: 'Все', mode: 'all' },
+      ...populatedCategories.map((category) => ({
+        id: `category-${category.id}`,
+        label: category.label,
+        mode: 'category' as const,
+        value: category.id,
+      })),
+      ...brands.map((brand) => ({
+        id: `brand-${brand.toLowerCase().replace(/[^a-zа-я0-9]+/gi, '-')}`,
+        label: brand,
+        mode: 'brand' as const,
+        value: brand,
+      })),
+    ];
+  }, [categories, products]);
+
+  useEffect(() => {
+    if (!catalogFilters.some((filter) => filter.id === selectedFilterId)) {
+      setSelectedFilterId('all');
+    }
+  }, [catalogFilters, selectedFilterId]);
+
   const filteredProducts = useMemo(() => {
-    const selectedFilter = filters.find((filter) => filter.id === selectedFilterId) ?? filters[0];
+    const selectedFilter = catalogFilters.find((filter) => filter.id === selectedFilterId) ?? catalogFilters[0];
     const visibleProducts = products.filter((product) => product.isActive);
 
     if (selectedFilter.mode === 'all') {
@@ -157,7 +197,7 @@ function App() {
 
       return product.category === selectedFilter.value;
     });
-  }, [products, selectedFilterId]);
+  }, [catalogFilters, products, selectedFilterId]);
 
   const resolvedCart = useMemo<ResolvedCartItem[]>(() => {
     return cart
@@ -238,6 +278,38 @@ function App() {
     setProducts((current) => current.filter((product) => product.id !== productId));
     removeCartItem(productId);
     haptic('warning');
+  };
+
+  const createCategory = (label: string) => {
+    if (!label) return;
+
+    const baseId =
+      label
+        .toLowerCase()
+        .replace(/[^a-zа-я0-9]+/gi, '-')
+        .replace(/^-|-$/g, '') || `category-${Date.now()}`;
+    const id = categories.some((category) => category.id === baseId) ? `${baseId}-${Date.now()}` : baseId;
+    setCategories((current) => [...current, { id, label }]);
+    haptic('success');
+  };
+
+  const renameCategory = (id: string, label: string) => {
+    if (!label.trim()) return;
+    setCategories((current) =>
+      current.map((category) => (category.id === id ? { ...category, label: label.trim() } : category)),
+    );
+    haptic('light');
+  };
+
+  const deleteCategory = (id: string) => {
+    if (products.some((product) => product.category === id)) {
+      haptic('warning');
+      return false;
+    }
+
+    setCategories((current) => current.filter((category) => category.id !== id));
+    haptic('warning');
+    return true;
   };
 
   const checkout = async (draft: CheckoutDraft) => {
@@ -356,6 +428,7 @@ function App() {
       return (
         <AdminPanel
           isOwner={isOwner}
+          categories={categories}
           products={products}
           orders={orders}
           deliverySettings={deliverySettings}
@@ -364,6 +437,9 @@ function App() {
           onDeleteProduct={deleteProduct}
           onStatusChange={changeOrderStatus}
           onUpdateDeliverySettings={updateDeliverySettings}
+          onCreateCategory={createCategory}
+          onRenameCategory={renameCategory}
+          onDeleteCategory={deleteCategory}
         />
       );
     }
@@ -371,7 +447,7 @@ function App() {
     return (
       <HomePage
         products={filteredProducts}
-        filters={filters}
+        filters={catalogFilters}
         activeFilterId={selectedFilterId}
         isAdmin={isAdmin}
         ageConfirmed={ageConfirmed}

@@ -1,4 +1,4 @@
-import type { CatalogFilter, DeliverySettings, Order, Product } from '../types';
+import type { CatalogCategory, CatalogFilter, DeliverySettings, Order, Product } from '../types';
 import { publicAsset } from '../lib/assets';
 
 const configuredAdminIds = (import.meta.env.VITE_ADMIN_TELEGRAM_IDS ?? '')
@@ -20,6 +20,14 @@ export const filters: CatalogFilter[] = [
   { id: 'hqd', label: 'HQD', mode: 'brand', value: 'HQD' },
   { id: 'elf-bar', label: 'Elf Bar', mode: 'brand', value: 'Elf Bar' },
   { id: 'brusko', label: 'Brusko', mode: 'brand', value: 'Brusko' },
+];
+
+export const initialCategories: CatalogCategory[] = [
+  { id: 'disposable', label: 'Одноразки' },
+  { id: 'liquid', label: 'Жидкости' },
+  { id: 'pod', label: 'POD-системы' },
+  { id: 'cartridge', label: 'Картриджи' },
+  { id: 'accessory', label: 'Аксессуары' },
 ];
 
 export const initialDeliverySettings: DeliverySettings = {

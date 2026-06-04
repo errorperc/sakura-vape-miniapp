@@ -81,9 +81,9 @@ export const applyTelegramTheme = () => {
   setVar('--tg-bg', params.bg_color ?? '#0b0b0f');
   setVar('--tg-text', params.text_color ?? '#f7f7fb');
   setVar('--tg-hint', params.hint_color ?? '#8c8994');
-  setVar('--tg-link', params.link_color ?? '#ff3f9f');
-  setVar('--tg-button', params.button_color ?? '#ff2d8d');
-  setVar('--tg-button-text', params.button_text_color ?? '#ffffff');
+  setVar('--tg-link', isDark ? '#ff58a8' : '#d91f73');
+  setVar('--tg-button', isDark ? '#f52b88' : '#df2479');
+  setVar('--tg-button-text', '#ffffff');
   setVar('--tg-secondary-bg', params.secondary_bg_color ?? '#111118');
   setVar('--tg-section-bg', params.section_bg_color ?? '#171720');
   setVar('--tg-subtitle', params.subtitle_text_color ?? '#a4a0ad');
