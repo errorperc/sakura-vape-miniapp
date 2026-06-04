@@ -625,19 +625,20 @@ p {
   position: relative;
   display: flex;
   min-width: 0;
-  min-height: 314px;
+  min-height: 306px;
   overflow: hidden;
   flex-direction: column;
   padding: 9px;
+  border: 1px solid transparent;
   border-radius: 16px;
-  border-color: rgba(255, 255, 255, 0.1);
   background:
-    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--accent) 17%, transparent), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 46%),
-    rgba(17, 17, 25, 0.7);
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 34%),
+    radial-gradient(circle at 76% 18%, rgba(255, 45, 141, 0.08), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 46%),
+    rgba(13, 13, 20, 0.66);
   box-shadow:
-    0 16px 34px rgba(0, 0, 0, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+    0 14px 30px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.018);
   backdrop-filter: blur(18px) saturate(1.12);
   animation: cardEnter 680ms var(--ease-soft) both;
   transition:
@@ -661,16 +662,16 @@ p {
   position: relative;
   display: grid;
   width: 100%;
-  aspect-ratio: 1 / 0.96;
+  aspect-ratio: 1 / 0.9;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.065);
+  border: 1px solid rgba(255, 74, 158, 0.03);
   border-radius: 13px;
   background:
-    radial-gradient(circle at 50% 32%, color-mix(in srgb, var(--accent) 25%, transparent), transparent 42%),
+    radial-gradient(circle at 50% 32%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 42%),
     linear-gradient(155deg, color-mix(in srgb, var(--accent) 14%, transparent), transparent 58%),
     linear-gradient(180deg, rgba(19, 19, 28, 0.92), rgba(8, 8, 13, 0.96));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    inset 0 1px 0 rgba(255, 255, 255, 0.028),
     inset 0 -24px 42px rgba(0, 0, 0, 0.2);
   place-items: center;
 }
@@ -759,9 +760,9 @@ p {
   max-width: 58%;
   overflow: hidden;
   padding: 4px 7px;
-  border: 1px solid rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.035);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(255, 255, 255, 0.028);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -823,7 +824,7 @@ p {
 .product-card__price small {
   padding: 4px 7px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.03);
   color: rgba(255, 255, 255, 0.44);
   font-size: 0.65rem;
   font-weight: 720;
@@ -838,16 +839,16 @@ p {
   width: 100%;
   min-height: 39px;
   padding: 9px 10px;
-  border: 1px solid color-mix(in srgb, var(--accent) 38%, rgba(255, 91, 166, 0.18));
+  border: 1px solid rgba(255, 91, 166, 0.24);
   border-radius: 12px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent 52%),
-    linear-gradient(135deg, color-mix(in srgb, var(--accent) 24%, rgba(255, 45, 141, 0.12)), rgba(255, 45, 141, 0.12));
+    linear-gradient(135deg, rgba(255, 45, 141, 0.16), rgba(255, 45, 141, 0.08));
   color: #ffd9eb;
   font-size: 0.8rem;
   letter-spacing: 0;
   box-shadow:
-    0 12px 24px color-mix(in srgb, var(--accent) 12%, rgba(255, 45, 141, 0.08)),
+    0 12px 24px rgba(255, 45, 141, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(12px);
   transition:
@@ -861,12 +862,12 @@ p {
 @media (hover: hover) {
   .product-card__cart:hover {
     opacity: 1;
-    border-color: color-mix(in srgb, var(--accent) 50%, rgba(255, 91, 166, 0.3));
+    border-color: rgba(255, 91, 166, 0.38);
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 48%),
-      linear-gradient(135deg, color-mix(in srgb, var(--accent) 32%, rgba(255, 45, 141, 0.16)), rgba(255, 45, 141, 0.18));
+      linear-gradient(135deg, rgba(255, 45, 141, 0.22), rgba(255, 45, 141, 0.14));
     box-shadow:
-      0 16px 30px color-mix(in srgb, var(--accent) 16%, rgba(255, 45, 141, 0.1)),
+      0 16px 30px rgba(255, 45, 141, 0.12),
       inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 }
@@ -897,12 +898,12 @@ p {
 
 @media (hover: hover) {
   .product-card:hover {
-    border-color: color-mix(in srgb, var(--accent) 24%, rgba(255, 63, 159, 0.12));
-    transform: translateY(-2px);
+    border-color: rgba(255, 74, 158, 0.08);
+    transform: translateY(-1.5px);
     box-shadow:
-      0 18px 38px rgba(0, 0, 0, 0.2),
-      0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      0 17px 36px rgba(0, 0, 0, 0.22),
+      0 0 26px color-mix(in srgb, var(--accent) 8%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.025);
   }
 
   .cart-item:hover,
@@ -1143,33 +1144,50 @@ p {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   overflow: hidden;
-  gap: 14px;
-  padding: 16px;
-  border: 1px solid rgba(255, 104, 172, 0.17);
-  border-radius: 8px;
+  gap: 15px;
+  padding: 17px;
+  border: 1px solid rgba(255, 104, 172, 0.2);
+  border-radius: 18px;
   background:
-    linear-gradient(140deg, rgba(255, 45, 141, 0.11), transparent 42%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
-    var(--surface);
+    radial-gradient(circle at 16% 16%, rgba(255, 105, 174, 0.17), transparent 34%),
+    linear-gradient(135deg, rgba(255, 45, 141, 0.1), rgba(255, 255, 255, 0.018) 48%, transparent),
+    rgba(19, 19, 28, 0.72);
   box-shadow:
-    0 18px 38px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+    0 22px 46px rgba(0, 0, 0, 0.24),
+    0 12px 34px rgba(255, 45, 141, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px) saturate(1.12);
   animation: contentRise 680ms var(--ease-soft) both;
+}
+
+.profile-card::before {
+  position: absolute;
+  right: -58px;
+  bottom: -76px;
+  width: 190px;
+  height: 190px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 45, 141, 0.16), transparent 64%);
+  content: "";
+  opacity: 0.8;
+  pointer-events: none;
 }
 
 .profile-card::after {
   position: absolute;
-  top: 0;
-  right: 20px;
-  left: 20px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 100, 171, 0.65), transparent);
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 100, 171, 0.3), transparent) top 0 left 22px / calc(100% - 44px) 1px no-repeat,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.028), transparent 42%);
   content: "";
+  pointer-events: none;
 }
 
 .profile-card__avatar-wrap {
   position: relative;
   align-self: center;
+  z-index: 1;
 }
 
 .profile-card__avatar-wrap > i {
@@ -1178,7 +1196,7 @@ p {
   bottom: 2px;
   width: 12px;
   height: 12px;
-  border: 3px solid var(--surface);
+  border: 3px solid #171720;
   border-radius: 50%;
   background: #37d889;
   box-shadow: 0 0 10px rgba(55, 216, 137, 0.38);
@@ -1186,15 +1204,20 @@ p {
 
 .profile-card__avatar {
   display: grid;
-  width: 72px;
-  height: 72px;
-  border: 2px solid rgba(255, 255, 255, 0.12);
+  width: 74px;
+  height: 74px;
+  border: 2px solid rgba(255, 117, 181, 0.56);
   overflow: hidden;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--tg-button), #ffffff);
+  background:
+    radial-gradient(circle at 35% 25%, #ffffff, transparent 32%),
+    linear-gradient(135deg, #ff4ca1, #ff9ccc);
   color: #0b0b0f;
   font-size: 1.2rem;
   font-weight: 850;
+  box-shadow:
+    0 0 0 4px rgba(255, 45, 141, 0.08),
+    0 14px 28px rgba(0, 0, 0, 0.22);
   place-items: center;
 }
 
@@ -1205,19 +1228,23 @@ p {
 }
 
 .profile-card__info {
+  position: relative;
+  z-index: 1;
   display: grid;
   min-width: 0;
-  gap: 10px;
+  gap: 11px;
   align-content: center;
 }
 
 .profile-card__info h1 {
-  font-size: 1.3rem;
+  font-size: 1.32rem;
+  line-height: 1.05;
 }
 
 .profile-card__info p {
   overflow-wrap: anywhere;
   font-size: 0.88rem;
+  color: rgba(179, 200, 220, 0.84);
 }
 
 .profile-card__chips {
@@ -1228,13 +1255,16 @@ p {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 8px;
+  padding: 6px 9px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 102, 170, 0.14);
-  background: rgba(255, 45, 141, 0.1);
-  color: #ff83bb;
+  border: 1px solid rgba(255, 102, 170, 0.2);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), transparent),
+    rgba(255, 45, 141, 0.13);
+  color: #ff9dcc;
   font-size: 0.7rem;
-  font-weight: 760;
+  font-weight: 820;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
 }
 
 .stats-grid,
@@ -1282,21 +1312,26 @@ p {
   gap: 4px 8px;
   min-height: 82px;
   align-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.075);
-  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 14px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent),
-    var(--surface);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+    radial-gradient(circle at 100% 0%, rgba(255, 45, 141, 0.055), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent),
+    rgba(19, 19, 28, 0.62);
+  box-shadow:
+    0 13px 28px rgba(0, 0, 0, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  backdrop-filter: blur(14px);
   animation: contentRise 680ms var(--ease-soft) both;
 }
 
 .stat-card:nth-child(odd) {
-  border-right: 1px solid rgba(255, 255, 255, 0.075);
+  border-right-color: rgba(255, 255, 255, 0.055);
 }
 
 .stat-card:nth-child(-n + 2) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+  border-bottom-color: rgba(255, 255, 255, 0.055);
 }
 
 .stat-card > span:not(.stat-card__icon) {
@@ -1313,20 +1348,23 @@ p {
 
 .stat-card__icon {
   display: grid;
-  width: 25px;
-  height: 25px;
-  border: 1px solid rgba(255, 255, 255, 0.065);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.035);
-  color: #b2aeb9;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 9px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), transparent),
+    rgba(255, 255, 255, 0.035);
+  color: #b9b4c2;
   place-items: center;
 }
 
 .stat-card--accent {
-  border-color: rgba(255, 80, 158, 0.34);
+  border-color: rgba(255, 80, 158, 0.3);
   background:
-    linear-gradient(145deg, rgba(255, 45, 141, 0.2), transparent),
-    var(--surface);
+    radial-gradient(circle at 88% 14%, rgba(255, 115, 185, 0.2), transparent 34%),
+    linear-gradient(145deg, rgba(255, 45, 141, 0.18), transparent),
+    rgba(26, 16, 28, 0.72);
   color: var(--tg-link);
 }
 

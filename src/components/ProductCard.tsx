@@ -59,8 +59,8 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
   };
 
   return (
-    <article className={`product-card product-card--${stockClassName}`}>
-      <div className="product-card__media" style={{ '--accent': product.accent } as CSSProperties}>
+    <article className={`product-card product-card--${stockClassName}`} style={{ '--accent': product.accent } as CSSProperties}>
+      <div className="product-card__media">
         <span className="product-card__accent" aria-hidden="true" />
         <img src={publicAsset(product.image)} alt={product.name} loading="lazy" />
         <span className={`stock-pill stock-pill--${stockClassName}`}>{getStockLabel(product)}</span>
