@@ -10,6 +10,9 @@ x-api-environment: &api-environment
   NODE_ENV: production
   PORT: 4000
   ADMIN_TELEGRAM_ID: ${ADMIN_TELEGRAM_ID:?Set ADMIN_TELEGRAM_ID in .env}
+  MANAGER_TELEGRAM_ID: ${MANAGER_TELEGRAM_ID:?Set MANAGER_TELEGRAM_ID in .env}
+  PUBLIC_APP_URL: ${PUBLIC_APP_URL:?Set PUBLIC_APP_URL in .env}
+  TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Set TELEGRAM_BOT_TOKEN in .env}
   DATABASE_URL: postgresql://${POSTGRES_USER:-sakura}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-sakura_vape}?schema=public
 
 services:

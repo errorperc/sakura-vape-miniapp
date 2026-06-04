@@ -28,8 +28,6 @@ export const initialDeliverySettings: DeliverySettings = {
   pickupDescription: 'Пункт выдачи после подтверждения администратором.',
   timeTitle: 'Время',
   timeDescription: 'В среднем 60–120 минут по городу.',
-  zonesTitle: 'Зоны',
-  zonesDescription: 'Минск, Уручье, Каменная Горка, Зеленый Луг, центр.',
   primaryCondition: 'Доставка от 3000 ₽ бесплатная. До 3000 ₽ стоимость рассчитывается администратором по району.',
   secondaryCondition: 'Самовывоз доступен после подтверждения наличия товара. При получении потребуется подтвердить 18+.',
 };
@@ -166,7 +164,6 @@ export const initialOrders: Order[] = [
     total: 2140,
     delivery: {
       name: 'Алексей',
-      phone: '+375 29 123-45-67',
       address: 'Минск, ул. Немига, 8',
       comment: 'После 19:00',
     },
@@ -195,7 +192,6 @@ export const initialOrders: Order[] = [
     total: 3490,
     delivery: {
       name: 'Алексей',
-      phone: '+375 29 123-45-67',
       address: 'Минск, пр-т Победителей, 21',
       comment: 'Позвонить за 10 минут',
     },

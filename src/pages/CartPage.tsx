@@ -1,11 +1,12 @@
 import {
   CheckCircle2,
+  LoaderCircle,
   MapPin,
   MessageSquareText,
   Minus,
-  Phone,
   Plus,
   ReceiptText,
+  Send,
   ShoppingCart,
   Trash2,
   UserRound,
@@ -31,7 +32,7 @@ interface CartPageProps {
   onNavigateHome: () => void;
   onQuantityChange: (productId: string, quantity: number) => void;
   onRemove: (productId: string) => void;
-  onCheckout: (draft: CheckoutDraft) => void;
+  onCheckout: (draft: CheckoutDraft) => Promise<boolean>;
 }
 
 export function CartPage({
@@ -47,6 +48,7 @@ export function CartPage({
   onCheckout,
 }: CartPageProps) {
   const [form, setForm] = useState<CheckoutDraft>(draft);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     setForm(draft);
@@ -56,9 +58,11 @@ export function CartPage({
     setForm((current) => ({ ...current, [key]: value }));
   };
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onCheckout(form);
+    setSubmitting(true);
+    await onCheckout(form);
+    setSubmitting(false);
   };
 
   if (lastOrder && items.length === 0) {
@@ -178,13 +182,6 @@ export function CartPage({
             </span>
           </label>
           <label>
-            Телефон
-            <span className="field-control">
-              <Phone size={17} aria-hidden="true" />
-              <input required inputMode="tel" value={form.phone} onChange={(event) => update('phone', event.target.value)} />
-            </span>
-          </label>
-          <label>
             Адрес
             <span className="field-control">
               <MapPin size={17} aria-hidden="true" />
@@ -199,9 +196,9 @@ export function CartPage({
             </span>
           </label>
         </div>
-        <button className="button button--primary" type="submit">
-          <CheckCircle2 size={18} aria-hidden="true" />
-          Оформить заказ
+        <button className="button button--primary" type="submit" disabled={submitting}>
+          {submitting ? <LoaderCircle className="product-card__cart-loader" size={18} aria-hidden="true" /> : <Send size={18} aria-hidden="true" />}
+          {submitting ? 'Отправляем...' : 'Отправить заказ менеджеру'}
         </button>
       </form>
     </main>

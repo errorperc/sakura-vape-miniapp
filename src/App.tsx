@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AdminPanel } from './components/AdminPanel';
 import { BottomNav } from './components/BottomNav';
 import { filters, initialDeliverySettings, initialOrders, initialProducts } from './data/mockData';
+import { notifyManagerAboutOrder } from './lib/ordersApi';
 import { formatUserName, getTelegramUser, haptic, initTelegramApp, isAdminUser } from './lib/telegram';
 import { CartPage, type ResolvedCartItem } from './pages/CartPage';
 import { DeliveryPage } from './pages/DeliveryPage';
@@ -87,7 +88,6 @@ function App() {
   const [deliveryDraft, setDeliveryDraft] = useState<CheckoutDraft>(() =>
     readStorage(storageKeys.delivery, {
       name: formatUserName(user),
-      phone: '',
       address: '',
       comment: '',
     }),
@@ -229,15 +229,7 @@ function App() {
     haptic('warning');
   };
 
-  const prepareDelivery = (draft: CheckoutDraft) => {
-    setDeliveryDraft(draft);
-    haptic('success');
-    if (cartCount > 0) {
-      setView('cart');
-    }
-  };
-
-  const checkout = (draft: CheckoutDraft) => {
+  const checkout = async (draft: CheckoutDraft) => {
     const unavailableItem = resolvedCart.find(
       ({ product, quantity }) => !product.isActive || product.stockCount <= 0 || quantity > product.stockCount,
     );
@@ -247,7 +239,7 @@ function App() {
         `${unavailableItem.product.name}: доступно ${Math.max(0, unavailableItem.product.stockCount)} шт.`,
       );
       haptic('warning');
-      return;
+      return false;
     }
 
     const items = resolvedCart.map(({ product, quantity }) => ({
@@ -267,6 +259,14 @@ function App() {
       total: cartTotal,
       delivery: draft,
     };
+
+    try {
+      await notifyManagerAboutOrder(order);
+    } catch {
+      setCartWarning('Не удалось отправить заказ менеджеру. Проверьте подключение и попробуйте ещё раз.');
+      haptic('error');
+      return false;
+    }
 
     setDeliveryDraft(draft);
     setOrders((current) => [order, ...current]);
@@ -291,6 +291,7 @@ function App() {
     setCartWarning('');
     setLastOrder(order);
     haptic('success');
+    return true;
   };
 
   const changeOrderStatus = (orderId: string, status: OrderStatus) => {
@@ -320,14 +321,7 @@ function App() {
     }
 
     if (view === 'delivery') {
-      return (
-        <DeliveryPage
-          settings={deliverySettings}
-          initialDraft={deliveryDraft}
-          cartCount={cartCount}
-          onPrepareDelivery={prepareDelivery}
-        />
-      );
+      return <DeliveryPage settings={deliverySettings} />;
     }
 
     if (view === 'cart') {

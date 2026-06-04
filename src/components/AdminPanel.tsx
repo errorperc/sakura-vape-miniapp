@@ -1,4 +1,4 @@
-import { Bike, Clock3, Edit3, ImagePlus, Link, MapPin, Plus, Save, Settings2, Store, Trash2 } from 'lucide-react';
+import { Bike, Clock3, Edit3, ImagePlus, Link, Plus, Save, Settings2, Store, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { publicAsset } from '../lib/assets';
@@ -209,47 +209,25 @@ export function AdminPanel({
           </label>
         </div>
 
-        <div className="form-row">
-          <div className="admin-delivery-editor__compact">
-            <Clock3 size={18} aria-hidden="true" />
-            <label>
-              Заголовок сроков
-              <input
-                required
-                value={deliveryDraft.timeTitle}
-                onChange={(event) => updateDeliveryDraft('timeTitle', event.target.value)}
-              />
-            </label>
-            <label>
-              Сроки
-              <textarea
-                rows={3}
-                required
-                value={deliveryDraft.timeDescription}
-                onChange={(event) => updateDeliveryDraft('timeDescription', event.target.value)}
-              />
-            </label>
-          </div>
-          <div className="admin-delivery-editor__compact">
-            <MapPin size={18} aria-hidden="true" />
-            <label>
-              Заголовок зон
-              <input
-                required
-                value={deliveryDraft.zonesTitle}
-                onChange={(event) => updateDeliveryDraft('zonesTitle', event.target.value)}
-              />
-            </label>
-            <label>
-              Зоны
-              <textarea
-                rows={3}
-                required
-                value={deliveryDraft.zonesDescription}
-                onChange={(event) => updateDeliveryDraft('zonesDescription', event.target.value)}
-              />
-            </label>
-          </div>
+        <div className="admin-delivery-editor__compact">
+          <Clock3 size={18} aria-hidden="true" />
+          <label>
+            Заголовок сроков
+            <input
+              required
+              value={deliveryDraft.timeTitle}
+              onChange={(event) => updateDeliveryDraft('timeTitle', event.target.value)}
+            />
+          </label>
+          <label>
+            Сроки
+            <textarea
+              rows={3}
+              required
+              value={deliveryDraft.timeDescription}
+              onChange={(event) => updateDeliveryDraft('timeDescription', event.target.value)}
+            />
+          </label>
         </div>
 
         <label>

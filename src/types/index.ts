@@ -41,7 +41,6 @@ export interface CartItem {
 
 export interface DeliveryDetails {
   name: string;
-  phone: string;
   address: string;
   comment: string;
 }
@@ -54,8 +53,6 @@ export interface DeliverySettings {
   pickupDescription: string;
   timeTitle: string;
   timeDescription: string;
-  zonesTitle: string;
-  zonesDescription: string;
   primaryCondition: string;
   secondaryCondition: string;
 }

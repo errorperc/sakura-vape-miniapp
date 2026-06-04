@@ -1854,8 +1854,7 @@ textarea:focus {
   border-top: 1px solid rgba(255, 255, 255, 0.085);
 }
 
-.checkout-form,
-.delivery-contact-form {
+.checkout-form {
   display: grid;
   gap: 12px;
   animation: contentRise 720ms var(--ease-soft) both;
@@ -1865,13 +1864,11 @@ textarea:focus {
   padding: 2px 1px 0;
 }
 
-.checkout-form .section-heading,
-.delivery-contact-form .section-heading {
+.checkout-form .section-heading {
   padding: 3px 2px;
 }
 
-.checkout-fields,
-.delivery-contact-fields {
+.checkout-fields {
   display: grid;
   gap: 11px;
   padding: 14px;
@@ -1901,8 +1898,7 @@ textarea:focus {
   text-align: right;
 }
 
-.checkout-form > .button,
-.delivery-contact-form > .button {
+.checkout-form > .button {
   min-height: 44px;
   margin: 1px 0 0;
   border-radius: 10px;
@@ -2014,10 +2010,6 @@ textarea:focus {
 .delivery-rule p {
   color: rgba(255, 255, 255, 0.52);
   font-size: 0.78rem;
-}
-
-.delivery-contact-form {
-  padding-top: 4px;
 }
 
 .admin-delivery-editor {
