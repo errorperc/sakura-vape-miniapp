@@ -27,6 +27,7 @@ const callBotApi = async (method, body = {}) => {
 };
 
 const bot = await callBotApi('getMe');
+const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL ?? new URL('/api/telegram/webhook', miniAppUrl).toString();
 
 await callBotApi('setMyCommands', {
   commands: [
@@ -43,6 +44,12 @@ await callBotApi('setChatMenuButton', {
   },
 });
 
+await callBotApi('setWebhook', {
+  url: webhookUrl,
+  allowed_updates: ['message'],
+  drop_pending_updates: true,
+});
+
 await callBotApi('setMyDescription', {
   description: 'Sakura Vape: каталог, корзина, доставка и история заказов в Telegram.',
 });
@@ -52,3 +59,4 @@ await callBotApi('setMyShortDescription', {
 });
 
 console.log(`Configured @${bot.username}: ${miniAppUrl}`);
+console.log(`Webhook: ${webhookUrl}`);

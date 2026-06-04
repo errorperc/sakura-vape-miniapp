@@ -8,9 +8,8 @@ const port = Number(process.env.PORT ?? 4000);
 const botToken = process.env.TELEGRAM_BOT_TOKEN ?? '';
 const ownerTelegramId = process.env.OWNER_TELEGRAM_ID ?? process.env.ADMIN_TELEGRAM_ID ?? '';
 const fallbackManagerTelegramId = process.env.MANAGER_TELEGRAM_ID ?? ownerTelegramId;
-const publicAppOrigin = new URL(
-  process.env.PUBLIC_APP_URL ?? 'https://api.185-246-217-69.sslip.io/',
-).origin;
+const publicAppUrl = process.env.PUBLIC_APP_URL ?? 'https://api.185-246-217-69.sslip.io/';
+const publicAppOrigin = new URL(publicAppUrl).origin;
 const notificationCooldowns = new Map<number, number>();
 const addressSuggestionCache = new Map<string, { expiresAt: number; suggestions: AddressSuggestion[] }>();
 
@@ -104,6 +103,37 @@ const escapeHtml = (value: string) => {
   });
 };
 
+const callTelegramApi = async (method: string, body: Record<string, unknown>) => {
+  if (!botToken) return false;
+
+  const telegramResponse = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10_000),
+  });
+  const telegramResult = (await telegramResponse.json().catch(() => null)) as { ok?: boolean } | null;
+
+  return telegramResponse.ok && telegramResult?.ok === true;
+};
+
+const sendShopLaunchMessage = async (chatId: number | string) => {
+  return callTelegramApi('sendMessage', {
+    chat_id: chatId,
+    text: 'Sakura Vape открыт на нашем сервере. Нажмите кнопку ниже, чтобы перейти в магазин.',
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: 'Открыть магазин',
+            web_app: { url: publicAppUrl },
+          },
+        ],
+      ],
+    },
+  });
+};
+
 const validateTelegramInitData = (initData: unknown): TelegramInitUser | null => {
   if (!botToken || typeof initData !== 'string' || initData.length === 0 || initData.length > 12_000) {
     return null;
@@ -166,6 +196,20 @@ app.get('/api/health', async (_request, response) => {
   } catch {
     response.status(503).json({ status: 'unavailable' });
   }
+});
+
+app.post('/api/telegram/webhook', async (request, response) => {
+  const update = isRecord(request.body) ? request.body : {};
+  const message = isRecord(update.message) ? update.message : null;
+  const chat = message && isRecord(message.chat) ? message.chat : null;
+  const chatId = typeof chat?.id === 'number' || typeof chat?.id === 'string' ? chat.id : null;
+  const text = textValue(message?.text, 120);
+
+  if (chatId && (!text || text.startsWith('/start') || text.startsWith('/shop'))) {
+    await sendShopLaunchMessage(chatId).catch(() => false);
+  }
+
+  response.json({ ok: true });
 });
 
 const upsertAuthenticatedUser = async (telegramUser: TelegramInitUser) => {
