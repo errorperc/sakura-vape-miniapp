@@ -1,4 +1,4 @@
-import { Home, PackageSearch, ShoppingBag, Truck, UserRound } from 'lucide-react';
+import { Home, PackageSearch, ReceiptText, ShoppingBag, Truck, UserRound } from 'lucide-react';
 import type { View } from '../types';
 
 interface BottomNavProps {
@@ -17,7 +17,11 @@ const navItems: Array<{ view: View; label: string; icon: typeof Home }> = [
 
 export function BottomNav({ activeView, isAdmin, cartCount, onNavigate }: BottomNavProps) {
   const items = isAdmin
-    ? [...navItems, { view: 'admin' as View, label: 'Админ', icon: PackageSearch }]
+    ? [
+        ...navItems,
+        { view: 'orders' as View, label: 'Заказы', icon: ReceiptText },
+        { view: 'admin' as View, label: 'Админ', icon: PackageSearch },
+      ]
     : navItems;
 
   return (

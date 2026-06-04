@@ -6,7 +6,6 @@ import {
   Link,
   PackageSearch,
   Plus,
-  ReceiptText,
   Save,
   Settings2,
   Store,
@@ -18,28 +17,25 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { publicAsset } from '../lib/assets';
-import type { CatalogCategory, DeliverySettings, Order, OrderStatus, Product, ProductCategory } from '../types';
+import type { CatalogCategory, DeliverySettings, Product, ProductCategory } from '../types';
 import { CategoryManagement } from './CategoryManagement';
-import { OrderList } from './OrderList';
 import { TeamManagement } from './TeamManagement';
 
-type AdminTab = 'catalog' | 'orders' | 'settings' | 'team';
+type AdminTab = 'catalog' | 'settings' | 'team';
 type CatalogSection = 'products' | 'categories';
 
 interface AdminPanelProps {
   isOwner: boolean;
   categories: CatalogCategory[];
   products: Product[];
-  orders: Order[];
   deliverySettings: DeliverySettings;
-  onCreateProduct: (product: Product) => void;
-  onUpdateProduct: (product: Product) => void;
-  onDeleteProduct: (productId: string) => void;
-  onStatusChange: (orderId: string, status: OrderStatus) => void;
+  onCreateProduct: (product: Product) => Promise<void>;
+  onUpdateProduct: (product: Product) => Promise<void>;
+  onDeleteProduct: (productId: string) => Promise<void>;
   onUpdateDeliverySettings: (settings: DeliverySettings) => void;
-  onCreateCategory: (label: string) => void;
-  onRenameCategory: (id: string, label: string) => void;
-  onDeleteCategory: (id: string) => boolean;
+  onCreateCategory: (label: string) => Promise<void>;
+  onRenameCategory: (id: string, label: string) => Promise<void>;
+  onDeleteCategory: (id: string) => Promise<boolean>;
 }
 
 const makeEmptyProduct = (categories: CatalogCategory[]): Product => ({
@@ -53,7 +49,7 @@ const makeEmptyProduct = (categories: CatalogCategory[]): Product => ({
   stock: 'in_stock',
   stockCount: 1,
   isActive: true,
-  image: publicAsset('products/hqd-cuvie-plus.png'),
+  image: 'products/hqd-cuvie-plus.png',
   accent: '#f52b88',
   nicotine: '20 мг',
 });
@@ -62,12 +58,10 @@ export function AdminPanel({
   isOwner,
   categories,
   products,
-  orders,
   deliverySettings,
   onCreateProduct,
   onUpdateProduct,
   onDeleteProduct,
-  onStatusChange,
   onUpdateDeliverySettings,
   onCreateCategory,
   onRenameCategory,
@@ -85,11 +79,10 @@ export function AdminPanel({
   const tabs = useMemo(
     () => [
       { id: 'catalog' as const, label: 'Каталог', icon: PackageSearch },
-      { id: 'orders' as const, label: 'Заказы', icon: ReceiptText, count: orders.length },
       { id: 'settings' as const, label: 'Доставка', icon: Settings2 },
       ...(isOwner ? [{ id: 'team' as const, label: 'Команда', icon: UsersRound }] : []),
     ],
-    [isOwner, orders.length],
+    [isOwner],
   );
 
   useEffect(() => {
@@ -129,7 +122,7 @@ export function AdminPanel({
     reader.readAsDataURL(file);
   };
 
-  const submitProduct = (event: FormEvent<HTMLFormElement>) => {
+  const submitProduct = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const stockCount = Math.max(0, Number(draft.stockCount));
     const normalized: Product = {
@@ -140,8 +133,8 @@ export function AdminPanel({
       stock: stockCount === 0 ? 'out_of_stock' : stockCount <= 5 ? 'low_stock' : 'in_stock',
     };
 
-    if (editingId) onUpdateProduct(normalized);
-    else onCreateProduct(normalized);
+    if (editingId) await onUpdateProduct(normalized);
+    else await onCreateProduct(normalized);
     resetForm();
   };
 
@@ -180,7 +173,6 @@ export function AdminPanel({
             >
               <Icon size={17} aria-hidden="true" />
               <span>{tab.label}</span>
-              {'count' in tab && tab.count ? <em>{tab.count}</em> : null}
             </button>
           );
         })}
@@ -344,10 +336,6 @@ export function AdminPanel({
               </>
             ) : null}
           </>
-        ) : null}
-
-        {activeTab === 'orders' ? (
-          <OrderList orders={orders} title="Заказы клиентов" editable onStatusChange={onStatusChange} />
         ) : null}
 
         {activeTab === 'settings' ? (

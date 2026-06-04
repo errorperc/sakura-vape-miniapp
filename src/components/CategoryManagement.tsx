@@ -6,9 +6,9 @@ import type { CatalogCategory, Product } from '../types';
 interface CategoryManagementProps {
   categories: CatalogCategory[];
   products: Product[];
-  onCreate: (label: string) => void;
-  onRename: (id: string, label: string) => void;
-  onDelete: (id: string) => boolean;
+  onCreate: (label: string) => Promise<void>;
+  onRename: (id: string, label: string) => Promise<void>;
+  onDelete: (id: string) => Promise<boolean>;
 }
 
 export function CategoryManagement({
@@ -26,9 +26,9 @@ export function CategoryManagement({
     setLabels(Object.fromEntries(categories.map((category) => [category.id, category.label])));
   }, [categories]);
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onCreate(newLabel.trim());
+    await onCreate(newLabel.trim());
     setNewLabel('');
     setMessage('Категория добавлена.');
   };
@@ -78,8 +78,8 @@ export function CategoryManagement({
               <button
                 className="icon-button"
                 type="button"
-                onClick={() => {
-                  onRename(category.id, labels[category.id] ?? category.label);
+                onClick={async () => {
+                  await onRename(category.id, labels[category.id] ?? category.label);
                   setMessage('Название категории обновлено.');
                 }}
                 title="Сохранить название"
@@ -90,8 +90,8 @@ export function CategoryManagement({
                 className="icon-button icon-button--danger"
                 type="button"
                 disabled={count > 0}
-                onClick={() => {
-                  if (onDelete(category.id)) {
+                onClick={async () => {
+                  if (await onDelete(category.id)) {
                     setMessage('Пустая категория удалена.');
                   }
                 }}

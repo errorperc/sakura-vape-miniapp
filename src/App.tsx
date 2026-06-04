@@ -3,24 +3,56 @@ import { useEffect, useMemo, useState } from 'react';
 import { AdminPanel } from './components/AdminPanel';
 import { BottomNav } from './components/BottomNav';
 import { initialCategories, initialDeliverySettings, initialOrders, initialProducts } from './data/mockData';
-import { notifyManagerAboutOrder } from './lib/ordersApi';
+import {
+  createAdminCategory,
+  createAdminProduct,
+  getAdminCatalog,
+  getCatalog,
+  removeAdminCategory,
+  removeAdminProduct,
+  renameAdminCategory,
+  updateAdminProduct,
+} from './lib/catalogApi';
+import {
+  createCustomerOrder,
+  createManualOrder as createManualOrderRequest,
+  getAdminOrders,
+  getMyOrders,
+  notifyManagerAboutOrder,
+  updateAdminOrderStatus,
+} from './lib/ordersApi';
 import { formatUserName, getTelegramUser, haptic, initTelegramApp, isOwnerUser } from './lib/telegram';
 import { getAdminSession } from './lib/teamApi';
+import { AdminOrdersPage } from './pages/AdminOrdersPage';
 import { CartPage, type ResolvedCartItem } from './pages/CartPage';
 import { DeliveryPage } from './pages/DeliveryPage';
 import { HomePage } from './pages/HomePage';
 import { ProfilePage } from './pages/ProfilePage';
 import { useCartStore } from './store/cartStore';
-import type { AdminSession, CatalogCategory, CatalogFilter, CheckoutDraft, DeliverySettings, Order, OrderStatus, Product, StockStatus, View } from './types';
+import type {
+  AdminSession,
+  CatalogCategory,
+  CatalogFilter,
+  CheckoutDraft,
+  DeliverySettings,
+  ManualOrderDraft,
+  Order,
+  OrderStatus,
+  Product,
+  StockStatus,
+  View,
+} from './types';
 
 const storageKeys = {
   age: 'vape-shop-age-confirmed',
-  products: 'vape-shop-products',
-  categories: 'vape-shop-categories',
-  orders: 'vape-shop-orders',
   delivery: 'vape-shop-delivery-draft',
   deliverySettings: 'vape-shop-delivery-settings',
 };
+
+interface CatalogPayload {
+  categories: CatalogCategory[];
+  products: Product[];
+}
 
 const readStorage = <T,>(key: string, fallback: T): T => {
   try {
@@ -41,10 +73,7 @@ const writeStorage = (key: string, value: unknown) => {
 
 const makeOrderId = () => {
   const date = new Date();
-  const stamp = date
-    .toISOString()
-    .slice(2, 10)
-    .replaceAll('-', '');
+  const stamp = date.toISOString().slice(2, 10).replaceAll('-', '');
   const suffix = Math.floor(1000 + Math.random() * 9000);
 
   return `ORD-${stamp}-${suffix}`;
@@ -70,6 +99,18 @@ const normalizeProducts = (items: Product[]): Product[] => {
   }));
 };
 
+const makeCategoryId = (label: string, categories: CatalogCategory[]) => {
+  const baseId =
+    label
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[^\p{L}\p{N}]+/gu, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 48) || `category-${Date.now()}`;
+
+  return categories.some((category) => category.id === baseId) ? `${baseId}-${Date.now()}` : baseId;
+};
+
 function App() {
   const user = useMemo(() => getTelegramUser(), []);
   const cart = useCartStore((state) => state.items);
@@ -81,13 +122,9 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [selectedFilterId, setSelectedFilterId] = useState('all');
   const [ageConfirmed, setAgeConfirmed] = useState(() => readStorage(storageKeys.age, false));
-  const [products, setProducts] = useState<Product[]>(() =>
-    normalizeProducts(readStorage(storageKeys.products, initialProducts)),
-  );
-  const [categories, setCategories] = useState<CatalogCategory[]>(() =>
-    readStorage(storageKeys.categories, initialCategories),
-  );
-  const [orders, setOrders] = useState<Order[]>(() => readStorage(storageKeys.orders, initialOrders));
+  const [products, setProducts] = useState<Product[]>(() => normalizeProducts(initialProducts));
+  const [categories, setCategories] = useState<CatalogCategory[]>(initialCategories);
+  const [orders, setOrders] = useState<Order[]>(() => (user.isDemo ? initialOrders : []));
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [cartWarning, setCartWarning] = useState('');
   const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
@@ -105,11 +142,51 @@ function App() {
   const isOwner = isOwnerUser(user.id) || adminSession?.isOwner === true;
   const isAdmin = isOwner || adminSession?.isAdmin === true;
 
+  const applyCatalog = (catalog: CatalogPayload) => {
+    setCategories(catalog.categories.length > 0 ? catalog.categories : initialCategories);
+    setProducts(normalizeProducts(catalog.products));
+  };
+
+  const showAdminError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : 'Не удалось выполнить действие.';
+    haptic('error');
+    window.alert(message);
+  };
+
+  const refreshPublicCatalog = async () => {
+    const catalog = await getCatalog();
+    applyCatalog(catalog);
+  };
+
+  const refreshAdminCatalog = async () => {
+    const catalog = await getAdminCatalog();
+    applyCatalog(catalog);
+  };
+
   useEffect(() => {
     initTelegramApp();
-    const timer = window.setTimeout(() => setLoading(false), 550);
 
-    return () => window.clearTimeout(timer);
+    let isMounted = true;
+    const fallbackTimer = window.setTimeout(() => {
+      if (isMounted) setLoading(false);
+    }, 900);
+
+    getCatalog()
+      .then((catalog) => {
+        if (isMounted) applyCatalog(catalog);
+      })
+      .catch(() => {
+        // Mock data keeps the local preview usable when the API is not configured yet.
+      })
+      .finally(() => {
+        window.clearTimeout(fallbackTimer);
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(fallbackTimer);
+    };
   }, []);
 
   useEffect(() => {
@@ -121,20 +198,26 @@ function App() {
   }, [user.isDemo]);
 
   useEffect(() => {
+    if (user.isDemo) return;
+
+    if (isAdmin) {
+      Promise.all([getAdminCatalog(), getAdminOrders()])
+        .then(([catalog, adminOrders]) => {
+          applyCatalog(catalog);
+          setOrders(adminOrders);
+        })
+        .catch(() => undefined);
+      return;
+    }
+
+    getMyOrders()
+      .then(setOrders)
+      .catch(() => setOrders([]));
+  }, [isAdmin, user.isDemo]);
+
+  useEffect(() => {
     writeStorage(storageKeys.age, ageConfirmed);
   }, [ageConfirmed]);
-
-  useEffect(() => {
-    writeStorage(storageKeys.products, products);
-  }, [products]);
-
-  useEffect(() => {
-    writeStorage(storageKeys.categories, categories);
-  }, [categories]);
-
-  useEffect(() => {
-    writeStorage(storageKeys.orders, orders);
-  }, [orders]);
 
   useEffect(() => {
     writeStorage(storageKeys.delivery, deliveryDraft);
@@ -145,7 +228,7 @@ function App() {
   }, [deliverySettings]);
 
   useEffect(() => {
-    if (!isAdmin && view === 'admin') {
+    if (!isAdmin && (view === 'admin' || view === 'orders')) {
       setView('home');
     }
   }, [isAdmin, view]);
@@ -260,56 +343,152 @@ function App() {
     haptic('light');
   };
 
-  const createProduct = (product: Product) => {
-    setProducts((current) => [{ ...product, isActive: product.isActive ?? true, stock: getStockStatus(product.stockCount) }, ...current]);
-    haptic('success');
+  const createProduct = async (product: Product) => {
+    if (user.isDemo) {
+      setProducts((current) => [
+        { ...product, isActive: product.isActive ?? true, stock: getStockStatus(product.stockCount) },
+        ...current,
+      ]);
+      haptic('success');
+      return;
+    }
+
+    try {
+      const savedProduct = await createAdminProduct(product);
+      setProducts((current) => [savedProduct, ...current.filter((candidate) => candidate.id !== savedProduct.id)]);
+      await refreshAdminCatalog();
+      haptic('success');
+    } catch (error) {
+      showAdminError(error);
+    }
   };
 
-  const updateProduct = (product: Product) => {
-    setProducts((current) =>
-      current.map((candidate) =>
-        candidate.id === product.id ? { ...product, stock: getStockStatus(product.stockCount) } : candidate,
-      ),
-    );
-    haptic('success');
+  const updateProduct = async (product: Product) => {
+    if (user.isDemo) {
+      setProducts((current) =>
+        current.map((candidate) =>
+          candidate.id === product.id ? { ...product, stock: getStockStatus(product.stockCount) } : candidate,
+        ),
+      );
+      haptic('success');
+      return;
+    }
+
+    try {
+      const savedProduct = await updateAdminProduct(product);
+      setProducts((current) =>
+        current.map((candidate) => (candidate.id === savedProduct.id ? savedProduct : candidate)),
+      );
+      await refreshAdminCatalog();
+      haptic('success');
+    } catch (error) {
+      showAdminError(error);
+    }
   };
 
-  const deleteProduct = (productId: string) => {
-    setProducts((current) => current.filter((product) => product.id !== productId));
-    removeCartItem(productId);
-    haptic('warning');
+  const deleteProduct = async (productId: string) => {
+    if (user.isDemo) {
+      setProducts((current) => current.filter((product) => product.id !== productId));
+      removeCartItem(productId);
+      haptic('warning');
+      return;
+    }
+
+    try {
+      await removeAdminProduct(productId);
+      setProducts((current) => current.filter((product) => product.id !== productId));
+      removeCartItem(productId);
+      await refreshAdminCatalog();
+      haptic('warning');
+    } catch (error) {
+      showAdminError(error);
+    }
   };
 
-  const createCategory = (label: string) => {
-    if (!label) return;
+  const createCategory = async (label: string) => {
+    const normalizedLabel = label.trim();
+    if (!normalizedLabel) return;
 
-    const baseId =
-      label
-        .toLowerCase()
-        .replace(/[^a-zа-я0-9]+/gi, '-')
-        .replace(/^-|-$/g, '') || `category-${Date.now()}`;
-    const id = categories.some((category) => category.id === baseId) ? `${baseId}-${Date.now()}` : baseId;
-    setCategories((current) => [...current, { id, label }]);
-    haptic('success');
+    if (user.isDemo) {
+      setCategories((current) => [...current, { id: makeCategoryId(normalizedLabel, current), label: normalizedLabel }]);
+      haptic('success');
+      return;
+    }
+
+    try {
+      const category = await createAdminCategory(normalizedLabel);
+      setCategories((current) => [...current, category]);
+      await refreshAdminCatalog();
+      haptic('success');
+    } catch (error) {
+      showAdminError(error);
+    }
   };
 
-  const renameCategory = (id: string, label: string) => {
-    if (!label.trim()) return;
-    setCategories((current) =>
-      current.map((category) => (category.id === id ? { ...category, label: label.trim() } : category)),
-    );
-    haptic('light');
+  const renameCategory = async (id: string, label: string) => {
+    const normalizedLabel = label.trim();
+    if (!normalizedLabel) return;
+
+    if (user.isDemo) {
+      setCategories((current) =>
+        current.map((category) => (category.id === id ? { ...category, label: normalizedLabel } : category)),
+      );
+      haptic('light');
+      return;
+    }
+
+    try {
+      const category = await renameAdminCategory(id, normalizedLabel);
+      setCategories((current) => current.map((candidate) => (candidate.id === id ? category : candidate)));
+      await refreshAdminCatalog();
+      haptic('light');
+    } catch (error) {
+      showAdminError(error);
+    }
   };
 
-  const deleteCategory = (id: string) => {
+  const deleteCategory = async (id: string) => {
     if (products.some((product) => product.category === id)) {
       haptic('warning');
       return false;
     }
 
-    setCategories((current) => current.filter((category) => category.id !== id));
-    haptic('warning');
-    return true;
+    if (user.isDemo) {
+      setCategories((current) => current.filter((category) => category.id !== id));
+      haptic('warning');
+      return true;
+    }
+
+    try {
+      await removeAdminCategory(id);
+      setCategories((current) => current.filter((category) => category.id !== id));
+      await refreshAdminCatalog();
+      haptic('warning');
+      return true;
+    } catch (error) {
+      showAdminError(error);
+      return false;
+    }
+  };
+
+  const updateLocalStockAfterOrder = (items: ResolvedCartItem[]) => {
+    setProducts((current) =>
+      current.map((product) => {
+        const ordered = items.find((item) => item.product.id === product.id);
+
+        if (!ordered) {
+          return product;
+        }
+
+        const stockCount = Math.max(0, product.stockCount - ordered.quantity);
+
+        return {
+          ...product,
+          stockCount,
+          stock: getStockStatus(stockCount),
+        };
+      }),
+    );
   };
 
   const checkout = async (draft: CheckoutDraft) => {
@@ -318,9 +497,7 @@ function App() {
     );
 
     if (unavailableItem) {
-      setCartWarning(
-        `${unavailableItem.product.name}: доступно ${Math.max(0, unavailableItem.product.stockCount)} шт.`,
-      );
+      setCartWarning(`${unavailableItem.product.name}: доступно ${Math.max(0, unavailableItem.product.stockCount)} шт.`);
       haptic('warning');
       return false;
     }
@@ -343,43 +520,101 @@ function App() {
       delivery: draft,
     };
 
+    if (user.isDemo) {
+      setDeliveryDraft(draft);
+      setOrders((current) => [order, ...current]);
+      updateLocalStockAfterOrder(resolvedCart);
+      clearCart();
+      setCartWarning('');
+      setLastOrder(order);
+      haptic('success');
+      return true;
+    }
+
     try {
-      await notifyManagerAboutOrder(order);
+      const savedOrder = await createCustomerOrder(order);
+      notifyManagerAboutOrder(savedOrder).catch(() => undefined);
+
+      setDeliveryDraft(draft);
+      setOrders((current) => [savedOrder, ...current]);
+      clearCart();
+      setCartWarning('');
+      setLastOrder(savedOrder);
+      refreshPublicCatalog().catch(() => undefined);
+      haptic('success');
+      return true;
     } catch {
-      setCartWarning('Не удалось отправить заказ менеджеру. Проверьте подключение и попробуйте ещё раз.');
+      setCartWarning('Не удалось оформить заказ. Проверьте подключение и попробуйте еще раз.');
       haptic('error');
       return false;
     }
-
-    setDeliveryDraft(draft);
-    setOrders((current) => [order, ...current]);
-    setProducts((current) =>
-      current.map((product) => {
-        const ordered = resolvedCart.find((item) => item.product.id === product.id);
-
-        if (!ordered) {
-          return product;
-        }
-
-        const stockCount = Math.max(0, product.stockCount - ordered.quantity);
-
-        return {
-          ...product,
-          stockCount,
-          stock: getStockStatus(stockCount),
-        };
-      }),
-    );
-    clearCart();
-    setCartWarning('');
-    setLastOrder(order);
-    haptic('success');
-    return true;
   };
 
-  const changeOrderStatus = (orderId: string, status: OrderStatus) => {
-    setOrders((current) => current.map((order) => (order.id === orderId ? { ...order, status } : order)));
-    haptic('light');
+  const changeOrderStatus = async (orderId: string, status: OrderStatus) => {
+    if (user.isDemo) {
+      setOrders((current) => current.map((order) => (order.id === orderId ? { ...order, status } : order)));
+      haptic('light');
+      return;
+    }
+
+    try {
+      const savedOrder = await updateAdminOrderStatus(orderId, status);
+      setOrders((current) => current.map((order) => (order.id === orderId ? savedOrder : order)));
+      haptic('light');
+    } catch (error) {
+      showAdminError(error);
+    }
+  };
+
+  const createManualOrder = async (draft: ManualOrderDraft) => {
+    const product = products.find((candidate) => candidate.id === draft.productId);
+    if (!product) return;
+
+    if (user.isDemo) {
+      const quantity = Math.max(1, Math.floor(draft.quantity));
+      const price = Math.max(0, Math.round(draft.price || product.price));
+      const order: Order = {
+        id: makeOrderId(),
+        userId: user.id,
+        createdAt: new Date().toISOString(),
+        status: draft.status,
+        total: price * quantity,
+        delivery: {
+          name: draft.customerName.trim() || 'Офлайн покупатель',
+          address: draft.address.trim() || 'Офлайн продажа',
+          comment: draft.comment.trim(),
+        },
+        items: [
+          {
+            productId: product.id,
+            productName: product.name,
+            brand: product.brand,
+            price,
+            quantity,
+          },
+        ],
+      };
+
+      setOrders((current) => [order, ...current]);
+      setProducts((current) =>
+        current.map((candidate) => {
+          if (candidate.id !== product.id) return candidate;
+          const stockCount = Math.max(0, candidate.stockCount - quantity);
+          return { ...candidate, stockCount, stock: getStockStatus(stockCount) };
+        }),
+      );
+      haptic('success');
+      return;
+    }
+
+    try {
+      const order = await createManualOrderRequest(draft);
+      setOrders((current) => [order, ...current]);
+      await refreshAdminCatalog();
+      haptic('success');
+    } catch (error) {
+      showAdminError(error);
+    }
   };
 
   const updateDeliverySettings = (settings: DeliverySettings) => {
@@ -424,18 +659,27 @@ function App() {
       );
     }
 
+    if (view === 'orders' && isAdmin) {
+      return (
+        <AdminOrdersPage
+          orders={orders}
+          products={products}
+          onStatusChange={changeOrderStatus}
+          onCreateManualOrder={createManualOrder}
+        />
+      );
+    }
+
     if (view === 'admin' && isAdmin) {
       return (
         <AdminPanel
           isOwner={isOwner}
           categories={categories}
           products={products}
-          orders={orders}
           deliverySettings={deliverySettings}
           onCreateProduct={createProduct}
           onUpdateProduct={updateProduct}
           onDeleteProduct={deleteProduct}
-          onStatusChange={changeOrderStatus}
           onUpdateDeliverySettings={updateDeliverySettings}
           onCreateCategory={createCategory}
           onRenameCategory={renameCategory}

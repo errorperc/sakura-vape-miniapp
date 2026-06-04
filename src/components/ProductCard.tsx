@@ -83,7 +83,7 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
         </div>
         <div className="product-card__actions">
           <button
-            className={`button button--primary product-card__cart ${added ? 'product-card__cart--added' : ''}`}
+            className={`button product-card__cart ${added ? 'product-card__cart--added' : ''}`}
             type="button"
             disabled={disabled}
             onClick={handleAdd}

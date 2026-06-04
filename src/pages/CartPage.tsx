@@ -84,7 +84,7 @@ export function CartPage({
 
   if (items.length === 0) {
     return (
-      <main className="page page--center">
+      <main className="page page--center cart-empty-page">
         <EmptyState
           icon={<ShoppingCart size={32} aria-hidden="true" />}
           title="Корзина пуста"

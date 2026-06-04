@@ -1,5 +1,5 @@
 import express from 'express';
-import { PrismaClient, OrderStatus, ProductCategory, UserRole } from '@prisma/client';
+import { PrismaClient, OrderStatus, UserRole } from '@prisma/client';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 const prisma = new PrismaClient();
@@ -200,6 +200,163 @@ const serializeTeamMember = (member: {
   createdAt: member.createdAt.toISOString(),
 });
 
+const defaultCategories = [
+  { id: 'disposable', label: 'Одноразки' },
+  { id: 'liquid', label: 'Жидкости' },
+  { id: 'pod', label: 'POD-системы' },
+  { id: 'cartridge', label: 'Картриджи' },
+  { id: 'accessory', label: 'Аксессуары' },
+];
+
+const statusToClient: Record<OrderStatus, string> = {
+  NEW: 'Новый',
+  PROCESSING: 'В обработке',
+  OUT_FOR_DELIVERY: 'Передан в доставку',
+  COMPLETED: 'Завершен',
+  CANCELED: 'Отменен',
+};
+
+const statusFromClient = (status: unknown): OrderStatus => {
+  if (status === 'В обработке' || status === 'PROCESSING') return OrderStatus.PROCESSING;
+  if (status === 'Передан в доставку' || status === 'OUT_FOR_DELIVERY') return OrderStatus.OUT_FOR_DELIVERY;
+  if (status === 'Завершен' || status === 'COMPLETED') return OrderStatus.COMPLETED;
+  if (status === 'Отменен' || status === 'CANCELED') return OrderStatus.CANCELED;
+
+  return OrderStatus.NEW;
+};
+
+const getStockStatus = (quantity: number) => {
+  if (quantity <= 0) return 'out_of_stock';
+  if (quantity <= 5) return 'low_stock';
+  return 'in_stock';
+};
+
+const makeCategoryId = (label: string) => {
+  return (
+    label
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[^\p{L}\p{N}]+/gu, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 48) || `category-${Date.now()}`
+  );
+};
+
+const ensureDefaultCategories = async () => {
+  await Promise.all(
+    defaultCategories.map((category) =>
+      prisma.category.upsert({
+        where: { id: category.id },
+        update: { label: category.label },
+        create: category,
+      }),
+    ),
+  );
+};
+
+const serializeCategory = (category: { id: string; label: string }) => ({
+  id: category.id,
+  label: category.label,
+});
+
+const serializeProduct = (product: {
+  id: string;
+  title: string;
+  brand: string;
+  categoryId: string;
+  description: string;
+  flavor: string;
+  price: number;
+  imageUrl: string;
+  accent: string;
+  nicotine: string;
+  quantity: number;
+  isActive: boolean;
+}) => ({
+  id: product.id,
+  name: product.title,
+  brand: product.brand,
+  category: product.categoryId,
+  taste: product.flavor,
+  description: product.description,
+  price: product.price,
+  stock: getStockStatus(product.quantity),
+  stockCount: product.quantity,
+  isActive: product.isActive,
+  image: product.imageUrl,
+  accent: product.accent,
+  nicotine: product.nicotine,
+});
+
+const serializeOrder = (order: {
+  id: string;
+  totalPrice: number;
+  status: OrderStatus;
+  deliveryName: string;
+  deliveryAddress: string;
+  deliveryComment: string | null;
+  createdAt: Date;
+  user?: { telegramId: bigint } | null;
+  items: Array<{
+    productId: string;
+    productTitle: string;
+    quantity: number;
+    priceAtPurchase: number;
+    product?: { brand: string } | null;
+  }>;
+}) => ({
+  id: order.id,
+  userId: Number(order.user?.telegramId ?? 0),
+  createdAt: order.createdAt.toISOString(),
+  status: statusToClient[order.status],
+  total: order.totalPrice,
+  delivery: {
+    name: order.deliveryName,
+    address: order.deliveryAddress,
+    comment: order.deliveryComment ?? '',
+  },
+  items: order.items.map((item) => ({
+    productId: item.productId,
+    productName: item.productTitle,
+    brand: item.product?.brand ?? '',
+    price: item.priceAtPurchase,
+    quantity: item.quantity,
+  })),
+});
+
+const productInput = (body: unknown) => {
+  const payload = isRecord(body) ? body : {};
+  const title = textValue(payload.name ?? payload.title, 120);
+  const brand = textValue(payload.brand, 80);
+  const categoryId = textValue(payload.category ?? payload.categoryId, 80);
+  const description = textValue(payload.description, 600);
+  const flavor = textValue(payload.taste ?? payload.flavor, 180);
+  const imageUrl = textValue(payload.image ?? payload.imageUrl, 2_000_000) || '/products/hqd-cuvie-plus.png';
+  const price = Math.max(0, Math.round(numberValue(payload.price)));
+  const quantity = Math.max(0, Math.floor(numberValue(payload.stockCount ?? payload.quantity)));
+  const accent = textValue(payload.accent, 20) || '#f52b88';
+  const nicotine = textValue(payload.nicotine, 40) || '20 мг';
+  const isActive = payload.isActive === undefined ? true : Boolean(payload.isActive);
+
+  if (!title || !brand || !categoryId) {
+    return null;
+  }
+
+  return {
+    title,
+    brand,
+    categoryId,
+    description,
+    flavor,
+    price,
+    imageUrl,
+    quantity,
+    accent,
+    nicotine,
+    isActive,
+  };
+};
+
 app.get('/api/admin/session', async (request, response) => {
   const user = await requireAuthenticatedUser(request, response);
   if (!user) return;
@@ -276,12 +433,46 @@ app.delete('/api/admin/team/:telegramId', async (request, response) => {
   response.status(204).send();
 });
 
+app.get('/api/catalog', async (_request, response) => {
+  await ensureDefaultCategories();
+
+  const [categories, products] = await Promise.all([
+    prisma.category.findMany({ orderBy: { createdAt: 'asc' } }),
+    prisma.product.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]);
+
+  response.json({
+    categories: categories.map(serializeCategory),
+    products: products.map(serializeProduct),
+  });
+});
+
 app.get('/api/products', async (_request, response) => {
   const products = await prisma.product.findMany({
     where: { isActive: true },
     orderBy: { createdAt: 'desc' },
   });
-  response.json(products);
+  response.json(products.map(serializeProduct));
+});
+
+app.get('/api/admin/catalog', async (request, response) => {
+  const admin = await requireAdmin(request, response);
+  if (!admin) return;
+
+  await ensureDefaultCategories();
+
+  const [categories, products] = await Promise.all([
+    prisma.category.findMany({ orderBy: { createdAt: 'asc' } }),
+    prisma.product.findMany({ orderBy: { createdAt: 'desc' } }),
+  ]);
+
+  response.json({
+    categories: categories.map(serializeCategory),
+    products: products.map(serializeProduct),
+  });
 });
 
 app.get('/api/admin/products', async (request, response) => {
@@ -289,26 +480,77 @@ app.get('/api/admin/products', async (request, response) => {
   if (!admin) return;
 
   const products = await prisma.product.findMany({ orderBy: { createdAt: 'desc' } });
-  response.json(products);
+  response.json(products.map(serializeProduct));
+});
+
+app.post('/api/admin/categories', async (request, response) => {
+  const admin = await requireAdmin(request, response);
+  if (!admin) return;
+
+  const label = textValue(request.body?.label, 80);
+  if (!label) {
+    response.status(400).json({ error: 'Category label is required.' });
+    return;
+  }
+
+  const baseId = makeCategoryId(label);
+  const id = (await prisma.category.findUnique({ where: { id: baseId } }))
+    ? `${baseId}-${Date.now()}`
+    : baseId;
+  const category = await prisma.category.create({ data: { id, label } });
+
+  response.status(201).json(serializeCategory(category));
+});
+
+app.patch('/api/admin/categories/:id', async (request, response) => {
+  const admin = await requireAdmin(request, response);
+  if (!admin) return;
+
+  const label = textValue(request.body?.label, 80);
+  if (!label) {
+    response.status(400).json({ error: 'Category label is required.' });
+    return;
+  }
+
+  const category = await prisma.category.update({
+    where: { id: request.params.id },
+    data: { label },
+  });
+
+  response.json(serializeCategory(category));
+});
+
+app.delete('/api/admin/categories/:id', async (request, response) => {
+  const admin = await requireAdmin(request, response);
+  if (!admin) return;
+
+  const productsCount = await prisma.product.count({ where: { categoryId: request.params.id } });
+  if (productsCount > 0) {
+    response.status(409).json({ error: 'Move products to another category before deleting it.' });
+    return;
+  }
+
+  await prisma.category.delete({ where: { id: request.params.id } });
+  response.status(204).send();
 });
 
 app.post('/api/admin/products', async (request, response) => {
   const admin = await requireAdmin(request, response);
   if (!admin) return;
 
-  const product = await prisma.product.create({
-    data: {
-      title: request.body.title,
-      brand: request.body.brand,
-      category: request.body.category as ProductCategory,
-      description: request.body.description,
-      flavor: request.body.flavor,
-      price: Number(request.body.price),
-      imageUrl: request.body.imageUrl,
-      quantity: Number(request.body.quantity),
-      isActive: Boolean(request.body.isActive ?? true),
-    },
-  });
+  const input = productInput(request.body);
+  if (!input) {
+    response.status(400).json({ error: 'Product name, brand and category are required.' });
+    return;
+  }
+
+  const category = await prisma.category.findUnique({ where: { id: input.categoryId } });
+  if (!category) {
+    response.status(400).json({ error: 'Category does not exist.' });
+    return;
+  }
+
+  const product = await prisma.product.create({ data: input });
 
   await prisma.stockLog.create({
     data: {
@@ -320,7 +562,7 @@ app.post('/api/admin/products', async (request, response) => {
     },
   });
 
-  response.status(201).json(product);
+  response.status(201).json(serializeProduct(product));
 });
 
 app.patch('/api/admin/products/:id', async (request, response) => {
@@ -333,37 +575,36 @@ app.patch('/api/admin/products/:id', async (request, response) => {
     return;
   }
 
-  const nextQuantity =
-    request.body.quantity === undefined ? current.quantity : Number(request.body.quantity);
+  const input = productInput({ ...current, ...request.body });
+  if (!input) {
+    response.status(400).json({ error: 'Product name, brand and category are required.' });
+    return;
+  }
+
+  const category = await prisma.category.findUnique({ where: { id: input.categoryId } });
+  if (!category) {
+    response.status(400).json({ error: 'Category does not exist.' });
+    return;
+  }
 
   const product = await prisma.product.update({
     where: { id: current.id },
-    data: {
-      title: request.body.title ?? current.title,
-      brand: request.body.brand ?? current.brand,
-      category: (request.body.category as ProductCategory | undefined) ?? current.category,
-      description: request.body.description ?? current.description,
-      flavor: request.body.flavor ?? current.flavor,
-      price: request.body.price === undefined ? current.price : Number(request.body.price),
-      imageUrl: request.body.imageUrl ?? current.imageUrl,
-      quantity: nextQuantity,
-      isActive: request.body.isActive === undefined ? current.isActive : Boolean(request.body.isActive),
-    },
+    data: input,
   });
 
-  if (nextQuantity !== current.quantity) {
+  if (input.quantity !== current.quantity) {
     await prisma.stockLog.create({
       data: {
         productId: current.id,
         adminId: admin.id,
         oldQuantity: current.quantity,
-        newQuantity: nextQuantity,
+        newQuantity: input.quantity,
         reason: request.body.stockReason ?? 'admin_update',
       },
     });
   }
 
-  response.json(product);
+  response.json(serializeProduct(product));
 });
 
 app.delete('/api/admin/products/:id', async (request, response) => {
@@ -499,46 +740,46 @@ app.post('/api/order-notifications', async (request, response) => {
 });
 
 app.post('/api/orders', async (request, response) => {
-  const result = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.upsert({
-      where: { telegramId: BigInt(request.body.user.telegramId) },
-      update: {
-        firstName: request.body.user.firstName,
-        username: request.body.user.username,
-        photoUrl: request.body.user.photoUrl,
-      },
-      create: {
-        telegramId: BigInt(request.body.user.telegramId),
-        firstName: request.body.user.firstName,
-        username: request.body.user.username,
-        photoUrl: request.body.user.photoUrl,
-      },
-    });
+  const user = await requireAuthenticatedUser(request, response);
+  if (!user) return;
 
+  const order = isRecord(request.body?.order) ? request.body.order : {};
+  const requestedItems = Array.isArray(order.items) ? order.items : [];
+  const delivery = isRecord(order.delivery) ? order.delivery : {};
+
+  if (requestedItems.length === 0 || requestedItems.length > 15) {
+    response.status(400).json({ error: 'Order items are required.' });
+    return;
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
     const items = [];
     let totalPrice = 0;
 
-    for (const item of request.body.items as Array<{ productId: string; quantity: number }>) {
-      const product = await tx.product.findUnique({ where: { id: item.productId } });
+    for (const item of requestedItems) {
+      if (!isRecord(item)) throw new Error('Order item is invalid.');
+      const productId = textValue(item.productId, 80);
+      const quantity = Math.max(1, Math.min(99, Math.floor(numberValue(item.quantity))));
+      const product = await tx.product.findUnique({ where: { id: productId } });
 
-      if (!product || !product.isActive || product.quantity < item.quantity) {
-        throw new Error(`Недостаточно товара: ${item.productId}`);
+      if (!product || !product.isActive || product.quantity < quantity) {
+        throw new Error(`Недостаточно товара: ${productId}`);
       }
 
       const updated = await tx.product.updateMany({
-        where: { id: product.id, quantity: { gte: item.quantity } },
-        data: { quantity: { decrement: item.quantity } },
+        where: { id: product.id, quantity: { gte: quantity } },
+        data: { quantity: { decrement: quantity } },
       });
 
       if (updated.count !== 1) {
         throw new Error(`Остаток изменился: ${product.title}`);
       }
 
-      totalPrice += product.price * item.quantity;
+      totalPrice += product.price * quantity;
       items.push({
         productId: product.id,
         productTitle: product.title,
-        quantity: item.quantity,
+        quantity,
         priceAtPurchase: product.price,
       });
     }
@@ -548,17 +789,30 @@ app.post('/api/orders', async (request, response) => {
         userId: user.id,
         totalPrice,
         status: OrderStatus.NEW,
-        deliveryName: request.body.delivery.name,
-        deliveryPhone: request.body.delivery.phone ?? '',
-        deliveryAddress: request.body.delivery.address,
-        deliveryComment: request.body.delivery.comment,
+        deliveryName: textValue(delivery.name, 160) || user.firstName,
+        deliveryPhone: '',
+        deliveryAddress: textValue(delivery.address, 320) || 'Не указан',
+        deliveryComment: textValue(delivery.comment, 500),
         items: { create: items },
       },
-      include: { items: true },
+      include: { items: { include: { product: { select: { brand: true } } } }, user: true },
     });
   });
 
-  response.status(201).json(result);
+  response.status(201).json(serializeOrder(result));
+});
+
+app.get('/api/orders/my', async (request, response) => {
+  const user = await requireAuthenticatedUser(request, response);
+  if (!user) return;
+
+  const orders = await prisma.order.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: 'desc' },
+    include: { items: { include: { product: { select: { brand: true } } } }, user: true },
+  });
+
+  response.json(orders.map(serializeOrder));
 });
 
 app.get('/api/admin/orders', async (request, response) => {
@@ -567,9 +821,57 @@ app.get('/api/admin/orders', async (request, response) => {
 
   const orders = await prisma.order.findMany({
     orderBy: { createdAt: 'desc' },
-    include: { items: true, user: true },
+    include: { items: { include: { product: { select: { brand: true } } } }, user: true },
   });
-  response.json(orders);
+
+  response.json(orders.map(serializeOrder));
+});
+
+app.post('/api/admin/orders', async (request, response) => {
+  const admin = await requireAdmin(request, response);
+  if (!admin) return;
+
+  const productId = textValue(request.body?.productId, 80);
+  const product = await prisma.product.findUnique({ where: { id: productId } });
+
+  if (!product) {
+    response.status(404).json({ error: 'Product not found.' });
+    return;
+  }
+
+  const quantity = Math.max(1, Math.min(99, Math.floor(numberValue(request.body?.quantity) || 1)));
+  const price = Math.max(0, Math.round(numberValue(request.body?.price) || product.price));
+  const totalPrice = price * quantity;
+
+  const order = await prisma.$transaction(async (tx) => {
+    await tx.product.update({
+      where: { id: product.id },
+      data: { quantity: Math.max(0, product.quantity - quantity) },
+    });
+
+    return tx.order.create({
+      data: {
+        userId: admin.id,
+        totalPrice,
+        status: statusFromClient(request.body?.status),
+        deliveryName: textValue(request.body?.customerName, 160) || 'Офлайн покупатель',
+        deliveryPhone: '',
+        deliveryAddress: textValue(request.body?.address, 320) || 'Офлайн продажа',
+        deliveryComment: textValue(request.body?.comment, 500),
+        items: {
+          create: [{
+            productId: product.id,
+            productTitle: product.title,
+            quantity,
+            priceAtPurchase: price,
+          }],
+        },
+      },
+      include: { items: { include: { product: { select: { brand: true } } } }, user: true },
+    });
+  });
+
+  response.status(201).json(serializeOrder(order));
 });
 
 app.patch('/api/admin/orders/:id/status', async (request, response) => {
@@ -578,9 +880,11 @@ app.patch('/api/admin/orders/:id/status', async (request, response) => {
 
   const order = await prisma.order.update({
     where: { id: request.params.id },
-    data: { status: request.body.status as OrderStatus },
+    data: { status: statusFromClient(request.body.status) },
+    include: { items: { include: { product: { select: { brand: true } } } }, user: true },
   });
-  response.json(order);
+
+  response.json(serializeOrder(order));
 });
 
 app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {

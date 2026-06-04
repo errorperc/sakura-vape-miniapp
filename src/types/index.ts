@@ -1,4 +1,4 @@
-export type View = 'home' | 'profile' | 'delivery' | 'cart' | 'admin';
+export type View = 'home' | 'profile' | 'delivery' | 'cart' | 'orders' | 'admin';
 
 export type AdminRole = 'user' | 'manager' | 'admin' | 'owner';
 
@@ -95,6 +95,16 @@ export interface Order {
   total: number;
   status: OrderStatus;
   delivery: DeliveryDetails;
+}
+
+export interface ManualOrderDraft {
+  customerName: string;
+  address: string;
+  comment: string;
+  productId: string;
+  quantity: number;
+  price: number;
+  status: OrderStatus;
 }
 
 export interface TelegramUserProfile {
