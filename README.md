@@ -81,7 +81,7 @@ npm run server:dev
 
 Для первого запуска достаточно Ubuntu 24.04, 1 vCPU, 2 GB RAM и 30 GB NVMe. На такой машине проект использует ограничения памяти для контейнеров и создаёт 2 GB swap. Для роста и более спокойных сборок рекомендуется 2 vCPU и 4 GB RAM.
 
-Перед запуском направьте DNS `A`-запись домена, например `shop.example.com`, на IP сервера. Telegram Mini App требует публичный HTTPS URL. Caddy автоматически получит и будет продлевать сертификат, если порты `80` и `443` открыты.
+Frontend остаётся на GitHub Pages. Сервер размещает API/PostgreSQL и HTTPS-шлюз. Временно можно использовать имя `api.185-246-217-69.sslip.io`, которое автоматически указывает на IP сервера. Позже лучше заменить его собственным API-поддоменом.
 
 Первичная подготовка Ubuntu:
 
@@ -102,12 +102,12 @@ openssl rand -hex 32
 Минимальное содержимое `.env`:
 
 ```env
-APP_DOMAIN=shop.example.com
+APP_DOMAIN=api.185-246-217-69.sslip.io
+PUBLIC_APP_URL=https://errorperc.github.io/sakura-vape-miniapp/
 POSTGRES_DB=sakura_vape
 POSTGRES_USER=sakura
 POSTGRES_PASSWORD=СЛУЧАЙНЫЙ_HEX_ПАРОЛЬ
 ADMIN_TELEGRAM_ID=ВАШ_TELEGRAM_ID
-VITE_ADMIN_TELEGRAM_IDS=ВАШ_TELEGRAM_ID
 PORT=4000
 ```
 

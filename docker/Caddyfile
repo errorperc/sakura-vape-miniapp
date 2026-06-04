@@ -12,13 +12,8 @@
 		reverse_proxy api:4000
 	}
 
-	@static path /assets/* /products/*
-	header @static Cache-Control "public, max-age=604800"
-
 	handle {
-		root * /srv
-		try_files {path} /index.html
-		file_server
+		redir {$PUBLIC_APP_URL} 302
 	}
 
 	log {
