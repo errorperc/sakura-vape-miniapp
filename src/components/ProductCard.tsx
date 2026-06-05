@@ -45,7 +45,8 @@ export function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardP
   const unavailable = !product.isActive || availableCount <= 0;
   const disabled = unavailable || isAdding;
   const stockLabel = soldOutAfterCart ? 'Закончился' : getStockLabel({ ...product, stockCount: availableCount });
-  const imageIsPhoto = product.image.startsWith('data:') || /^https?:\/\//i.test(product.image);
+  const imageIsLivePhoto = product.image.includes('live-photo');
+  const imageIsPhoto = imageIsLivePhoto || product.image.startsWith('data:') || /^https?:\/\//i.test(product.image);
   const buttonLabel = isAdding
     ? '...'
     : added
@@ -99,7 +100,10 @@ export function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardP
   };
 
   return (
-    <article className={`product-card product-card--${stockClassName}`} style={{ '--accent': product.accent } as CSSProperties}>
+    <article
+      className={`product-card product-card--${stockClassName} ${imageIsLivePhoto ? 'product-card--live-photo' : ''}`}
+      style={{ '--accent': product.accent } as CSSProperties}
+    >
       <div className="product-card__media">
         <span className="product-card__accent" aria-hidden="true" />
         <span className={`product-card__image-shell ${imageIsPhoto ? 'product-card__image-shell--cover' : ''}`}>

@@ -674,6 +674,10 @@ p {
   place-items: center;
 }
 
+.product-card--live-photo .product-card__media {
+  aspect-ratio: 1 / 1;
+}
+
 .product-card__accent {
   position: absolute;
   inset: 18% 14% auto;
