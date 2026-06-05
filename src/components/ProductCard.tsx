@@ -44,7 +44,7 @@ export function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardP
   const stockClassName = getStockClassName({ ...product, stockCount: availableCount });
   const unavailable = !product.isActive || availableCount <= 0;
   const disabled = unavailable || isAdding;
-  const stockLabel = soldOutAfterCart ? 'Товар закончился' : getStockLabel({ ...product, stockCount: availableCount });
+  const stockLabel = soldOutAfterCart ? 'Закончился' : getStockLabel({ ...product, stockCount: availableCount });
   const imageIsPhoto = product.image.startsWith('data:') || /^https?:\/\//i.test(product.image);
   const buttonLabel = isAdding
     ? '...'

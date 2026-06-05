@@ -726,10 +726,11 @@ p {
 
 .stock-pill {
   display: inline-flex;
-  max-width: 58%;
+  max-width: min(68%, 112px);
+  min-width: 0;
   align-items: center;
   justify-content: center;
-  padding: 5px 8px;
+  padding: 5px 9px;
   border: 1px solid rgba(32, 184, 107, 0.3);
   border-radius: 999px;
   background: rgba(22, 70, 45, 0.2);
@@ -751,9 +752,11 @@ p {
 }
 
 .stock-pill--out_of_stock {
+  max-width: 100%;
   border-color: rgba(255, 92, 122, 0.42);
   background: rgba(255, 92, 122, 0.13);
   color: #ff7892;
+  font-size: 0.6rem;
 }
 
 .product-card__body {
