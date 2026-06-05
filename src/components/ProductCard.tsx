@@ -102,7 +102,7 @@ export function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardP
       <div className="product-card__media">
         <span className="product-card__accent" aria-hidden="true" />
         <span className="product-card__image-shell">
-          <img src={publicAsset(product.image)} alt={product.name} loading="lazy" />
+          <img src={publicAsset(product.image)} alt={product.name} />
         </span>
       </div>
 
