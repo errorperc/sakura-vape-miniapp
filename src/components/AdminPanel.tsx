@@ -23,6 +23,8 @@ import { TeamManagement } from './TeamManagement';
 
 type AdminTab = 'catalog' | 'settings' | 'team';
 type CatalogSection = 'products' | 'categories';
+const uploadImageMaxSize = 1200;
+const uploadImageQuality = 0.84;
 
 interface AdminPanelProps {
   isOwner: boolean;
@@ -53,6 +55,44 @@ const makeEmptyProduct = (categories: CatalogCategory[]): Product => ({
   accent: '#f52b88',
   nicotine: '20 мг',
 });
+
+const readFileAsDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') resolve(reader.result);
+      else reject(new Error('Image read failed.'));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('Image read failed.'));
+    reader.readAsDataURL(file);
+  });
+
+const convertFileToWebpDataUrl = async (file: File) => {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const image = new Image();
+    image.decoding = 'async';
+    image.src = objectUrl;
+    await image.decode();
+
+    const scale = Math.min(1, uploadImageMaxSize / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas is unavailable.');
+
+    context.drawImage(image, 0, 0, width, height);
+
+    return canvas.toDataURL('image/webp', uploadImageQuality);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+};
 
 export function AdminPanel({
   isOwner,
@@ -119,15 +159,15 @@ export function AdminPanel({
     focusProductEditor();
   };
 
-  const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !file.type.startsWith('image/')) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') updateDraft('image', reader.result);
-    };
-    reader.readAsDataURL(file);
+    try {
+      updateDraft('image', await convertFileToWebpDataUrl(file));
+    } catch {
+      updateDraft('image', await readFileAsDataUrl(file));
+    }
   };
 
   const submitProduct = async (event: FormEvent<HTMLFormElement>) => {
