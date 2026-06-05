@@ -661,7 +661,7 @@ p {
   position: relative;
   display: grid;
   width: 100%;
-  aspect-ratio: 1 / 0.78;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.055);
   border-radius: 18px;
@@ -672,14 +672,6 @@ p {
     inset 0 1px 0 rgba(255, 255, 255, 0.025),
     inset 0 -28px 48px rgba(0, 0, 0, 0.28);
   place-items: center;
-}
-
-.product-card--live-photo .product-card__media {
-  aspect-ratio: 1 / 1;
-}
-
-.product-card--live-photo .product-card__image-shell img {
-  filter: none;
 }
 
 .product-card__accent {
@@ -709,14 +701,13 @@ p {
 }
 
 .product-card__image-shell img {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
   border-radius: 16px;
   object-fit: contain;
-  filter:
-    drop-shadow(0 14px 22px rgba(0, 0, 0, 0.34));
+  filter: none;
   transition:
     transform 860ms var(--ease-soft),
     filter 760ms ease;
