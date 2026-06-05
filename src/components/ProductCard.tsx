@@ -45,7 +45,6 @@ export function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardP
   const unavailable = !product.isActive || availableCount <= 0;
   const disabled = unavailable || isAdding;
   const stockLabel = soldOutAfterCart ? 'Товар закончился' : getStockLabel({ ...product, stockCount: availableCount });
-  const stockDetail = soldOutAfterCart ? 'Товар закончился' : availableCount > 0 ? `Осталось: ${availableCount}` : 'Нет в наличии';
 
   useEffect(() => {
     if (!added) {
@@ -112,7 +111,6 @@ export function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardP
       <div className="product-card__footer">
         <div className="product-card__price">
           <strong>{product.price.toLocaleString('ru-RU')} ₽</strong>
-          <small className={unavailable ? 'is-empty' : undefined}>{stockDetail}</small>
         </div>
         <div className="product-card__actions">
           <button
