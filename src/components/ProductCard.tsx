@@ -46,7 +46,6 @@ export function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardP
   const disabled = unavailable || isAdding;
   const stockLabel = soldOutAfterCart ? 'Закончился' : getStockLabel({ ...product, stockCount: availableCount });
   const imageIsLivePhoto = product.image.includes('live-photo');
-  const imageIsUploadedPhoto = !imageIsLivePhoto && (product.image.startsWith('data:') || /^https?:\/\//i.test(product.image));
   const buttonLabel = isAdding
     ? '...'
     : added
@@ -106,7 +105,7 @@ export function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardP
     >
       <div className="product-card__media">
         <span className="product-card__accent" aria-hidden="true" />
-        <span className={`product-card__image-shell ${imageIsUploadedPhoto ? 'product-card__image-shell--cover' : ''}`}>
+        <span className="product-card__image-shell">
           <img src={publicAsset(product.image)} alt={product.name} loading="lazy" />
         </span>
       </div>
