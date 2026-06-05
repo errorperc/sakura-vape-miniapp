@@ -714,6 +714,16 @@ p {
     filter 760ms ease;
 }
 
+.product-card__image-shell--cover img {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border-radius: 18px;
+  object-fit: cover;
+  filter: none;
+}
+
 .stock-pill {
   display: inline-flex;
   max-width: 58%;
