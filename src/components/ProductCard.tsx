@@ -1,4 +1,4 @@
-import { Check, LoaderCircle, Plus } from 'lucide-react';
+import { Check, LoaderCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { CSSProperties, MouseEvent } from 'react';
 import { publicAsset } from '../lib/assets';
@@ -45,6 +45,15 @@ export function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardP
   const unavailable = !product.isActive || availableCount <= 0;
   const disabled = unavailable || isAdding;
   const stockLabel = soldOutAfterCart ? 'Товар закончился' : getStockLabel({ ...product, stockCount: availableCount });
+  const buttonLabel = isAdding
+    ? '...'
+    : added
+      ? 'Добавлено'
+      : soldOutAfterCart
+        ? 'Товар закончился'
+        : unavailable
+          ? 'Нет в наличии'
+          : 'В корзину';
 
   useEffect(() => {
     if (!added) {
@@ -95,7 +104,6 @@ export function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardP
         <span className="product-card__image-shell">
           <img src={publicAsset(product.image)} alt={product.name} loading="lazy" />
         </span>
-        <span className={`stock-pill stock-pill--${stockClassName}`}>{stockLabel}</span>
       </div>
 
       <div className="product-card__body">
@@ -111,6 +119,7 @@ export function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardP
       <div className="product-card__footer">
         <div className="product-card__price">
           <strong>{product.price.toLocaleString('ru-RU')} ₽</strong>
+          <span className={`stock-pill stock-pill--${stockClassName}`}>{stockLabel}</span>
         </div>
         <div className="product-card__actions">
           <button
@@ -123,10 +132,8 @@ export function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardP
               <LoaderCircle className="product-card__cart-loader" size={16} aria-hidden="true" />
             ) : added ? (
               <Check size={16} aria-hidden="true" />
-            ) : unavailable ? null : (
-              <Plus size={16} aria-hidden="true" />
-            )}
-            {isAdding ? '...' : added ? 'Добавлено' : soldOutAfterCart ? 'Товар закончился' : unavailable ? 'Нет в наличии' : 'Добавить'}
+            ) : null}
+            {buttonLabel}
           </button>
         </div>
       </div>
