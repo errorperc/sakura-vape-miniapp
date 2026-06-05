@@ -15,6 +15,7 @@ interface HomePageProps {
   onConfirmAge: () => void;
   onFilterChange: (filterId: string) => void;
   onAddToCart: (product: Product) => boolean;
+  getCartQuantity: (productId: string) => number;
 }
 
 export function HomePage({
@@ -26,6 +27,7 @@ export function HomePage({
   onConfirmAge,
   onFilterChange,
   onAddToCart,
+  getCartQuantity,
 }: HomePageProps) {
   if (!ageConfirmed) {
     return (
@@ -73,6 +75,7 @@ export function HomePage({
           {products.map((product) => (
             <ProductCard
               product={product}
+              cartQuantity={getCartQuantity(product.id)}
               onAddToCart={onAddToCart}
               key={product.id}
             />

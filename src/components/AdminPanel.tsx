@@ -106,10 +106,17 @@ export function AdminPanel({
     setIsProductEditorOpen(false);
   };
 
+  const focusProductEditor = () => {
+    window.setTimeout(() => {
+      document.querySelector('.admin-product-editor')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }, 80);
+  };
+
   const openNewProduct = () => {
     setDraft(makeEmptyProduct(categories));
     setEditingId(null);
     setIsProductEditorOpen(true);
+    focusProductEditor();
   };
 
   const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
@@ -143,7 +150,7 @@ export function AdminPanel({
     setDraft(product);
     setEditingId(product.id);
     setIsProductEditorOpen(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    focusProductEditor();
   };
 
   const submitDeliverySettings = async (event: FormEvent<HTMLFormElement>) => {

@@ -120,6 +120,7 @@ function App() {
   const setCartQuantity = useCartStore((state) => state.setQuantity);
   const removeCartItem = useCartStore((state) => state.removeItem);
   const clearCart = useCartStore((state) => state.clearCart);
+  const getCartQuantity = useCartStore((state) => state.getQuantity);
   const [view, setView] = useState<View>('home');
   const [loading, setLoading] = useState(true);
   const [selectedFilterId, setSelectedFilterId] = useState('all');
@@ -724,6 +725,7 @@ function App() {
         onConfirmAge={confirmAge}
         onFilterChange={setSelectedFilterId}
         onAddToCart={addToCart}
+        getCartQuantity={getCartQuantity}
       />
     );
   };

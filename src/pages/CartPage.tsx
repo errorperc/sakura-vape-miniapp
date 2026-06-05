@@ -256,7 +256,7 @@ export function CartPage({
             </span>
           </label>
         </div>
-        <button className="button button--primary" type="submit" disabled={submitting}>
+        <button className="button button--primary checkout-submit" type="submit" disabled={submitting}>
           {submitting ? <LoaderCircle className="product-card__cart-loader" size={18} aria-hidden="true" /> : <Send size={18} aria-hidden="true" />}
           {submitting ? 'Отправляем...' : 'Отправить заказ менеджеру'}
         </button>

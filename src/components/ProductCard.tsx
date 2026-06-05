@@ -6,6 +6,7 @@ import type { Product } from '../types';
 
 interface ProductCardProps {
   product: Product;
+  cartQuantity: number;
   onAddToCart: (product: Product) => boolean;
 }
 
@@ -33,14 +34,18 @@ const getStockClassName = (product: Product) => {
   return 'in_stock';
 };
 
-export function ProductCard({ product, onAddToCart }: ProductCardProps) {
+export function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [added, setAdded] = useState(false);
   const [flyStyle, setFlyStyle] = useState<CSSProperties | null>(null);
   const [flyKey, setFlyKey] = useState(0);
-  const stockClassName = getStockClassName(product);
-  const unavailable = product.stockCount <= 0;
-  const disabled = !product.isActive || product.stockCount <= 0 || isAdding;
+  const availableCount = Math.max(0, product.stockCount - cartQuantity);
+  const soldOutAfterCart = product.stockCount > 0 && availableCount <= 0;
+  const stockClassName = getStockClassName({ ...product, stockCount: availableCount });
+  const unavailable = !product.isActive || availableCount <= 0;
+  const disabled = unavailable || isAdding;
+  const stockLabel = soldOutAfterCart ? 'Товар закончился' : getStockLabel({ ...product, stockCount: availableCount });
+  const stockDetail = soldOutAfterCart ? 'Товар закончился' : availableCount > 0 ? `Осталось: ${availableCount}` : 'Нет в наличии';
 
   useEffect(() => {
     if (!added) {
@@ -91,7 +96,7 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
         <span className="product-card__image-shell">
           <img src={publicAsset(product.image)} alt={product.name} loading="lazy" />
         </span>
-        <span className={`stock-pill stock-pill--${stockClassName}`}>{getStockLabel(product)}</span>
+        <span className={`stock-pill stock-pill--${stockClassName}`}>{stockLabel}</span>
       </div>
 
       <div className="product-card__body">
@@ -107,7 +112,7 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
       <div className="product-card__footer">
         <div className="product-card__price">
           <strong>{product.price.toLocaleString('ru-RU')} ₽</strong>
-          <small>{product.stockCount} шт.</small>
+          <small className={unavailable ? 'is-empty' : undefined}>{stockDetail}</small>
         </div>
         <div className="product-card__actions">
           <button
@@ -123,7 +128,7 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
             ) : unavailable ? null : (
               <Plus size={16} aria-hidden="true" />
             )}
-            {isAdding ? '...' : added ? 'Добавлено' : unavailable ? 'Нет в наличии' : 'Добавить'}
+            {isAdding ? '...' : added ? 'Добавлено' : soldOutAfterCart ? 'Товар закончился' : unavailable ? 'Нет в наличии' : 'Добавить'}
           </button>
         </div>
       </div>
