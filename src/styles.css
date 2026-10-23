@@ -2382,3 +2382,17 @@ option {
     transform: scaleX(0);
   }
 }
+
+/* Ошибка в поле адреса: строка подсвечивается и слегка вздрагивает */
+.checkout-fields > label:has([aria-invalid='true']) {
+  box-shadow: inset 3px 0 0 var(--red);
+}
+
+.field-error {
+  animation: field-shake 0.35s ease;
+}
+
+@keyframes field-shake {
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}

@@ -15,6 +15,7 @@ COPY prisma ./prisma
 RUN npx prisma generate
 
 COPY public ./public
+COPY shared ./shared
 COPY server ./server
 
 EXPOSE 4000

@@ -217,7 +217,9 @@ export function CartPage({
                 required
                 value={form.address}
                 onChange={(event) => update('address', event.target.value)}
-                placeholder="Укажите адрес доставки"
+                placeholder="Немига 8, кв. 12"
+                onBlur={() => form.address.trim() && setAddressError(getAddressValidationMessage(form.address))}
+                aria-invalid={Boolean(addressError)}
                 autoComplete="street-address"
               />
             </span>

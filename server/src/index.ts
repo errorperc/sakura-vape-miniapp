@@ -3,6 +3,7 @@ import { PrismaClient, OrderStatus, UserRole } from '@prisma/client';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { getAddressError } from '../../shared/address';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -123,18 +124,6 @@ const numberValue = (value: unknown) => {
 };
 
 const normalizeAddressText = (value: string) => value.replace(/\s+/g, ' ').trim();
-
-const isProbablyDeliveryAddress = (value: string) => {
-  const normalized = normalizeAddressText(value);
-
-  if (normalized.length < 8 || normalized.length > 320) return false;
-  if (!/[a-zа-яё]{3,}/i.test(normalized)) return false;
-  if (!/\d/.test(normalized)) return false;
-  if (/(.)\1{5,}/i.test(normalized.replace(/\s/g, ''))) return false;
-  if (!/[,\s]/.test(normalized)) return false;
-
-  return true;
-};
 
 const escapeHtml = (value: string) => {
   return value.replace(/[&<>"']/g, (character) => {
@@ -1119,8 +1108,9 @@ app.post('/api/orders', async (request, response) => {
     return;
   }
 
-  if (!isPickup && !isProbablyDeliveryAddress(deliveryAddress)) {
-    response.status(400).json({ error: 'Введите понятный адрес с улицей и номером дома.' });
+  const addressError = isPickup ? '' : getAddressError(deliveryAddress);
+  if (addressError) {
+    response.status(400).json({ error: addressError });
     return;
   }
 
