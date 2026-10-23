@@ -26,7 +26,6 @@ import { formatUserName, getTelegramUser, haptic, initTelegramApp, isOwnerUser }
 import { getAdminSession } from './lib/teamApi';
 import { AdminOrdersPage } from './pages/AdminOrdersPage';
 import { CartPage, type ResolvedCartItem } from './pages/CartPage';
-import { DeliveryPage } from './pages/DeliveryPage';
 import { HomePage } from './pages/HomePage';
 import { ProductSheet } from './components/ProductSheet';
 import { ProfilePage } from './pages/ProfilePage';
@@ -511,7 +510,7 @@ function App() {
   };
 
   const checkout = async (draft: CheckoutDraft) => {
-    const addressError = getAddressValidationMessage(draft.address);
+    const addressError = draft.method === 'pickup' ? '' : getAddressValidationMessage(draft.address);
     if (addressError) {
       setCartWarning(addressError);
       haptic('warning');
@@ -687,10 +686,6 @@ function App() {
 
     if (view === 'profile') {
       return <ProfilePage user={user} orders={userOrders} isAdmin={isAdmin} />;
-    }
-
-    if (view === 'delivery') {
-      return <DeliveryPage settings={deliverySettings} />;
     }
 
     if (view === 'cart') {

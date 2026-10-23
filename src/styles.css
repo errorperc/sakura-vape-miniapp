@@ -412,8 +412,8 @@ p {
 .admin-products__list,
 .category-editor-list,
 .team-list,
-.order-list__items,
-.delivery-services {
+.order-list__items
+{
   overflow: hidden;
   border-radius: var(--radius);
   background: var(--surface);
@@ -426,7 +426,6 @@ p {
 .admin-product-row,
 .category-editor-row,
 .team-member,
-.delivery-service,
 .sales-row {
   position: relative;
   display: flex;
@@ -441,7 +440,6 @@ p {
 .admin-product-row + .admin-product-row,
 .category-editor-row + .category-editor-row,
 .team-member + .team-member,
-.delivery-service + .delivery-service,
 .sales-row + .sales-row {
   box-shadow: inset 0 0.5px 0 var(--separator);
 }
@@ -1860,82 +1858,67 @@ option {
   font-weight: 500;
 }
 
-/* ---------- Доставка ---------- */
+/* ---------- Способ получения в корзине ---------- */
 
-.delivery-services__heading {
-  display: none;
+.checkout-form .segmented {
+  margin-bottom: 0;
 }
 
-.delivery-service {
-  align-items: flex-start;
-  padding: 14px 16px;
-}
-
-.delivery-service__icon {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  flex: none;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-}
-
-.delivery-service__icon svg {
-  width: 18px;
-  height: 18px;
-}
-
-.delivery-service h2 {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.delivery-service p {
-  margin-top: 2px;
+.delivery-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 4px;
   color: var(--text-2);
   font-size: 14px;
   line-height: 1.4;
+  animation: page-in 0.3s var(--ease-out);
 }
 
-.delivery-service small {
+.delivery-info > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.delivery-info__terms summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 500;
+  list-style: none;
+  cursor: pointer;
+}
+
+.delivery-info__terms summary::-webkit-details-marker {
   display: none;
 }
 
-.delivery-rules {
-  margin-top: 8px;
+.delivery-info__terms summary svg {
+  transition: transform 0.3s var(--spring);
 }
 
-.delivery-rules h2 {
-  margin: 24px 4px 8px;
-  font-size: 20px;
-  font-weight: 600;
+.delivery-info__terms[open] summary svg {
+  transform: rotate(180deg);
 }
 
-.delivery-rule {
+.delivery-info__terms p {
   display: flex;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  color: var(--text-2);
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: 13px;
+  animation: page-in 0.3s var(--ease-out);
 }
 
-.delivery-rule:first-of-type {
-  border-radius: var(--radius) var(--radius) 0 0;
-}
-
-.delivery-rule:last-of-type {
-  border-radius: 0 0 var(--radius) var(--radius);
-  box-shadow: inset 0 0.5px 0 var(--separator);
-}
-
-.delivery-rule svg {
+.delivery-info__terms p svg {
   flex: none;
+  margin-top: 1px;
   color: var(--green);
 }
 

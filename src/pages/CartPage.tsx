@@ -1,13 +1,17 @@
 import {
+  Bike,
   CheckCircle2,
+  ChevronDown,
+  Clock3,
   LoaderCircle,
   MapPin,
   MessageSquareText,
   Minus,
   Plus,
-  ReceiptText,
   Send,
+  ShieldCheck,
   ShoppingCart,
+  Store,
   Trash2,
   UserRound,
 } from 'lucide-react';
@@ -17,7 +21,8 @@ import { EmptyState } from '../components/EmptyState';
 import { getAddressValidationMessage } from '../lib/addressApi';
 import { ProductImage } from '../components/ProductImage';
 import { formatOrderId } from '../lib/ordersApi';
-import type { CheckoutDraft, DeliverySettings, Order, Product } from '../types';
+import { segmentStyle } from '../lib/segment';
+import type { CheckoutDraft, DeliveryMethod, DeliverySettings, Order, Product } from '../types';
 
 export interface ResolvedCartItem {
   product: Product;
@@ -52,10 +57,17 @@ export function CartPage({
   const [form, setForm] = useState<CheckoutDraft>(draft);
   const [submitting, setSubmitting] = useState(false);
   const [addressError, setAddressError] = useState('');
+  const method: DeliveryMethod = form.method ?? 'courier';
+  const isPickup = method === 'pickup';
 
   useEffect(() => {
     setForm(draft);
   }, [draft]);
+
+  const setMethod = (next: DeliveryMethod) => {
+    setForm((current) => ({ ...current, method: next }));
+    setAddressError('');
+  };
 
   const update = (key: keyof CheckoutDraft, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -64,14 +76,14 @@ export function CartPage({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const nextAddressError = getAddressValidationMessage(form.address);
+    const nextAddressError = isPickup ? '' : getAddressValidationMessage(form.address);
     if (nextAddressError) {
       setAddressError(nextAddressError);
       return;
     }
 
     setSubmitting(true);
-    await onCheckout(form);
+    await onCheckout({ ...form, method });
     setSubmitting(false);
   };
 
@@ -161,20 +173,33 @@ export function CartPage({
 
       <form className="checkout-form" onSubmit={submit}>
         <div className="section-heading">
-          <h2>Доставка</h2>
-          <span>{items.length} поз.</span>
+          <h2>Способ получения</h2>
         </div>
-        <div className="checkout-summary">
-          <span className="checkout-summary__icon" aria-hidden="true">
-            <ReceiptText size={20} />
-          </span>
-          <div>
-            <span>К оплате</span>
-            <strong>{total.toLocaleString('ru-RU')} ₽</strong>
-          </div>
-          <small>Доставка {deliverySettings.priceLabel}</small>
+        <div className="segmented" role="tablist" aria-label="Способ получения" style={segmentStyle(isPickup ? 1 : 0, 2)}>
+          <button className={!isPickup ? 'is-active' : ''} type="button" role="tab" aria-selected={!isPickup} onClick={() => setMethod('courier')}>
+            <Bike size={15} aria-hidden="true" /> {deliverySettings.courierTitle}
+          </button>
+          <button className={isPickup ? 'is-active' : ''} type="button" role="tab" aria-selected={isPickup} onClick={() => setMethod('pickup')}>
+            <Store size={15} aria-hidden="true" /> {deliverySettings.pickupTitle}
+          </button>
         </div>
-        {warning ? <p className="form-note form-note--warning">{warning}</p> : null}
+
+        <div className="delivery-info" key={method}>
+          <p>{isPickup ? deliverySettings.pickupDescription : deliverySettings.courierDescription}</p>
+          {!isPickup ? (
+            <span>
+              <Clock3 size={14} aria-hidden="true" /> {deliverySettings.timeDescription}
+            </span>
+          ) : null}
+          <details className="delivery-info__terms">
+            <summary>
+              Условия доставки <ChevronDown size={14} aria-hidden="true" />
+            </summary>
+            <p><CheckCircle2 size={15} aria-hidden="true" /> {deliverySettings.primaryCondition}</p>
+            <p><ShieldCheck size={15} aria-hidden="true" /> {deliverySettings.secondaryCondition}</p>
+          </details>
+        </div>
+
         <div className="checkout-fields">
           <label>
             Имя
@@ -183,6 +208,7 @@ export function CartPage({
               <input required value={form.name} onChange={(event) => update('name', event.target.value)} />
             </span>
           </label>
+          {!isPickup ? (
           <label className="address-field">
             Адрес
             <span className="field-control">
@@ -197,6 +223,7 @@ export function CartPage({
             </span>
             {addressError ? <small className="field-error">{addressError}</small> : null}
           </label>
+          ) : null}
           <label>
             Комментарий
             <span className="field-control field-control--textarea">
@@ -205,6 +232,14 @@ export function CartPage({
             </span>
           </label>
         </div>
+        <div className="checkout-summary">
+          <div>
+            <span>К оплате</span>
+            <strong>{total.toLocaleString('ru-RU')} ₽</strong>
+          </div>
+          <small>{isPickup ? 'Самовывоз бесплатно' : `Доставка ${deliverySettings.priceLabel}`}</small>
+        </div>
+        {warning ? <p className="form-note form-note--warning">{warning}</p> : null}
         <button className="button button--primary checkout-submit" type="submit" disabled={submitting}>
           {submitting ? <LoaderCircle className="product-card__cart-loader" size={18} aria-hidden="true" /> : <Send size={18} aria-hidden="true" />}
           {submitting ? 'Отправляем...' : `Оформить заказ · ${total.toLocaleString('ru-RU')} ₽`}

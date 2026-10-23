@@ -529,6 +529,8 @@ type FullOrder = NonNullable<Awaited<ReturnType<typeof findFullOrder>>>;
 const formatRub = (value: number) => `${value.toLocaleString('ru-RU')} ₽`;
 const shortOrderId = (id: string) => id.slice(0, 8).toUpperCase();
 const offlineAddress = 'Офлайн продажа';
+// Адрес заказа при самовывозе — так способ получения виден менеджеру и в истории
+const pickupAddress = 'Самовывоз';
 
 const staffRoles: UserRole[] = [UserRole.manager, UserRole.admin, UserRole.owner];
 
@@ -1109,14 +1111,15 @@ app.post('/api/orders', async (request, response) => {
   const order = isRecord(request.body?.order) ? request.body.order : {};
   const requestedItems = Array.isArray(order.items) ? order.items : [];
   const delivery = isRecord(order.delivery) ? order.delivery : {};
-  const deliveryAddress = normalizeAddressText(textValue(delivery.address, 320));
+  const isPickup = delivery.method === 'pickup';
+  const deliveryAddress = isPickup ? pickupAddress : normalizeAddressText(textValue(delivery.address, 320));
 
   if (requestedItems.length === 0 || requestedItems.length > 15) {
     response.status(400).json({ error: 'Корзина пуста.' });
     return;
   }
 
-  if (!isProbablyDeliveryAddress(deliveryAddress)) {
+  if (!isPickup && !isProbablyDeliveryAddress(deliveryAddress)) {
     response.status(400).json({ error: 'Введите понятный адрес с улицей и номером дома.' });
     return;
   }

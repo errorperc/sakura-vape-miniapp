@@ -1,4 +1,4 @@
-export type View = 'home' | 'profile' | 'delivery' | 'cart' | 'orders' | 'admin';
+export type View = 'home' | 'profile' | 'cart' | 'orders' | 'admin';
 
 export type AdminRole = 'user' | 'manager' | 'admin' | 'owner';
 
@@ -61,7 +61,10 @@ export interface CartItem {
   quantity: number;
 }
 
+export type DeliveryMethod = 'courier' | 'pickup';
+
 export interface DeliveryDetails {
+  method?: DeliveryMethod;
   name: string;
   address: string;
   comment: string;

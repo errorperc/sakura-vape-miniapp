@@ -1,4 +1,4 @@
-import { Home, PackageSearch, ReceiptText, ShoppingBag, Truck, UserRound } from 'lucide-react';
+import { Home, PackageSearch, ReceiptText, ShoppingBag, UserRound } from 'lucide-react';
 import type { View } from '../types';
 import { segmentStyle } from '../lib/segment';
 
@@ -12,7 +12,6 @@ interface BottomNavProps {
 const navItems: Array<{ view: View; label: string; icon: typeof Home }> = [
   { view: 'home', label: 'Каталог', icon: Home },
   { view: 'cart', label: 'Корзина', icon: ShoppingBag },
-  { view: 'delivery', label: 'Доставка', icon: Truck },
   { view: 'profile', label: 'Профиль', icon: UserRound },
 ];
 
