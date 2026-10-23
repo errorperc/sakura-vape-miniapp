@@ -2834,78 +2834,6 @@ body::-webkit-scrollbar {
   background: var(--separator);
 }
 
-/* ---------- Плашка корзины над меню ---------- */
-.cart-bar {
-  position: fixed;
-  z-index: 19;
-  right: 12px;
-  bottom: calc(var(--safe-bottom) + 10px + var(--nav-height) + 8px);
-  left: 12px;
-  display: flex;
-  max-width: 616px;
-  height: 52px;
-  align-items: center;
-  gap: 10px;
-  margin: 0 auto;
-  padding: 0 14px 0 8px;
-  border-radius: 18px;
-  background: var(--accent-fill);
-  color: #fff;
-  box-shadow: 0 12px 30px -10px rgba(225, 29, 72, 0.6);
-  animation: cart-bar-in 0.5s var(--ease-ios);
-  transition: transform 0.4s var(--ease-ios), opacity 0.3s var(--ease-out);
-}
-
-.cart-bar:active {
-  transform: scale(0.98);
-  transition-duration: var(--press-in);
-}
-
-.cart-bar__icon {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.cart-bar__text {
-  flex: 1;
-  font-size: 16px;
-  font-weight: 600;
-  text-align: left;
-}
-
-.cart-bar__text em {
-  font-style: normal;
-  font-weight: 500;
-  opacity: 0.85;
-}
-
-.cart-bar strong {
-  font-size: 16px;
-  font-weight: 700;
-  animation: count-pop 0.35s var(--ease-out);
-}
-
-.has-cart-bar .page {
-  padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 96px);
-}
-
-.keyboard-open .cart-bar {
-  opacity: 0;
-  transform: translateY(calc(100% + var(--nav-height) + 40px));
-  pointer-events: none;
-}
-
-@keyframes cart-bar-in {
-  from {
-    opacity: 0;
-    transform: translateY(24px) scale(0.96);
-  }
-}
-
 /* ---------- Производительность (Core Web Vitals) ----------
    Размытие под каждой карточкой пересчитывалось на каждом кадре прокрутки — на средних Android это рывки.
    Оставляем стекло только на «хроме» (меню, прилипшая шапка), карточкам — плотный полупрозрачный фон. */
@@ -2951,4 +2879,55 @@ body::-webkit-scrollbar {
 .product-card {
   content-visibility: auto;
   contain-intrinsic-size: auto 320px;
+}
+
+/* ---------- Нижнее меню без наслоений ----------
+   Плотный фон вместо полупрозрачного, а над меню — мягкое затемнение:
+   карточки растворяются перед меню, а не наезжают на его кнопки */
+.bottom-nav {
+  background: rgba(20, 18, 21, 0.94);
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.08), 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+.app-shell::after {
+  content: '';
+  position: fixed;
+  z-index: 15;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: calc(var(--nav-height) + var(--safe-bottom) + 48px);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.78) 55%, #000 100%);
+  pointer-events: none;
+}
+
+.keyboard-open .app-shell::after {
+  opacity: 0;
+}
+
+/* Сумма корзины прямо во вкладке */
+.bottom-nav__label--total {
+  color: var(--text);
+  font-weight: 700;
+  animation: count-pop 0.35s var(--ease-out);
+}
+
+.bottom-nav__item--active .bottom-nav__label--total {
+  color: var(--accent);
+}
+
+/* ---------- Шторка: фото из карточки сразу, чёткое — поверх ---------- */
+.sheet__media {
+  position: relative;
+}
+
+.sheet__media-hi {
+  position: absolute;
+  inset: 0;
+}
+
+.sheet__media-hi img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }

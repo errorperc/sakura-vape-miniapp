@@ -27,7 +27,6 @@ import { getAdminSession } from './lib/teamApi';
 import { CartPage, type ResolvedCartItem } from './pages/CartPage';
 import { HomePage } from './pages/HomePage';
 import { ProductSheet } from './components/ProductSheet';
-import { CartBar } from './components/CartBar';
 import { ProfilePage } from './pages/ProfilePage';
 import { useCartStore } from './store/cartStore';
 import type {
@@ -320,7 +319,6 @@ function App() {
     return resolvedCart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   }, [resolvedCart]);
 
-  const showCartBar = ageConfirmed && view === 'home' && cartCount > 0 && !loading;
 
   const userOrders = useMemo(() => {
     return orders
@@ -765,7 +763,7 @@ function App() {
   };
 
   return (
-    <div className={`app-shell ${showCartBar ? 'has-cart-bar' : ''}`}>
+    <div className="app-shell">
       <Suspense
         fallback={
           <main className="page page--center">
@@ -786,8 +784,7 @@ function App() {
           onClose={() => setOpenedProductId(null)}
         />
       ) : null}
-      {showCartBar ? <CartBar count={cartCount} total={cartTotal} onOpen={() => setView('cart')} /> : null}
-      {ageConfirmed ? <BottomNav activeView={view} isAdmin={isAdmin} cartCount={cartCount} onNavigate={setView} /> : null}
+      {ageConfirmed ? <BottomNav activeView={view} isAdmin={isAdmin} cartCount={cartCount} cartTotal={cartTotal} onNavigate={setView} /> : null}
     </div>
   );
 }

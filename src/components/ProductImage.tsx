@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { publicAsset, thumbAsset } from '../lib/assets';
 import type { ThumbWidth } from '../lib/assets';
 
@@ -19,11 +19,20 @@ const srcSetWidths: ThumbWidth[] = [160, 320, 480, 900];
 export function ProductImage({ src, width, alt = '', eager = false, priority = false, sizes }: ProductImageProps) {
   const [loaded, setLoaded] = useState(false);
   const [fallback, setFallback] = useState(false);
+  const imageRef = useRef<HTMLImageElement>(null);
+
+  // Картинка из кэша может загрузиться раньше, чем React подпишется на onLoad, —
+  // тогда событие теряется и фото навсегда остаётся прозрачным. Проверяем сами.
+  useLayoutEffect(() => {
+    const image = imageRef.current;
+    if (image?.complete && image.naturalWidth > 0) setLoaded(true);
+  }, [src, width, fallback]);
   const thumbSource = thumbAsset(src, width);
   const canUseSrcSet = !fallback && sizes && thumbSource !== publicAsset(src);
 
   return (
     <img
+      ref={imageRef}
       className={`product-image ${loaded ? 'is-loaded' : ''} ${priority ? 'is-instant' : ''}`}
       src={fallback ? publicAsset(src) : thumbSource}
       srcSet={canUseSrcSet ? srcSetWidths.map((w) => `${thumbAsset(src, w)} ${w}w`).join(', ') : undefined}

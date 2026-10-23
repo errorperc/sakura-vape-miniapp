@@ -7,6 +7,7 @@ interface BottomNavProps {
   activeView: View;
   isAdmin: boolean;
   cartCount: number;
+  cartTotal: number;
   onNavigate: (view: View) => void;
 }
 
@@ -16,7 +17,7 @@ const navItems: Array<{ view: View; label: string; icon: typeof Home }> = [
   { view: 'profile', label: 'Профиль', icon: UserRound },
 ];
 
-export function BottomNav({ activeView, isAdmin, cartCount, onNavigate }: BottomNavProps) {
+export function BottomNav({ activeView, isAdmin, cartCount, cartTotal, onNavigate }: BottomNavProps) {
   const [catching, setCatching] = useState(0);
 
   useEffect(() => {
@@ -67,7 +68,14 @@ export function BottomNav({ activeView, isAdmin, cartCount, onNavigate }: Bottom
                 <span className="bottom-nav__badge" key={cartCount}>{cartCount}</span>
               ) : null}
             </span>
-            <span className="bottom-nav__label">{item.label}</span>
+            {/* Когда в корзине что-то есть, вместо подписи — сумма: одна надпись вместо двух */}
+            {item.view === 'cart' && cartCount > 0 ? (
+              <span className="bottom-nav__label bottom-nav__label--total" key={cartTotal}>
+                {cartTotal.toLocaleString('ru-RU')} ₽
+              </span>
+            ) : (
+              <span className="bottom-nav__label">{item.label}</span>
+            )}
           </button>
         );
       })}

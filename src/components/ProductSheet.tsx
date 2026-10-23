@@ -111,7 +111,11 @@ export function ProductSheet({ product, categories, cartQuantity, onAddToCart, o
           onPointerUp={onDragEnd}
           onPointerCancel={onDragEnd}
         >
-          <ProductImage src={product.image} width={900} alt={product.name} eager />
+          {/* Сразу — фото из карточки (оно уже в кэше), чёткое большое проявляется поверх, когда догрузится */}
+          <ProductImage src={product.image} width={480} priority />
+          <div className="sheet__media-hi">
+            <ProductImage src={product.image} width={900} alt={product.name} eager />
+          </div>
         </div>
         <div className="sheet__body">
           <div className="sheet__title">
