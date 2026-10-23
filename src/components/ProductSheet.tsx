@@ -1,7 +1,6 @@
 import { Check, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent } from 'react';
-import { thumbAsset } from '../lib/assets';
 import { ProductImage } from './ProductImage';
 import type { CatalogCategory, Product } from '../types';
 import { getStockLabel, useCartFly } from './ProductCard';
@@ -16,7 +15,7 @@ interface ProductSheetProps {
 
 export function ProductSheet({ product, categories, cartQuantity, onAddToCart, onClose }: ProductSheetProps) {
   const [added, setAdded] = useState(false);
-  const { flyStyle, flyKey, launch, onFlyEnd } = useCartFly();
+  const { launch, renderFly } = useCartFly();
   const availableCount = Math.max(0, product.stockCount - cartQuantity);
   const unavailable = !product.isActive || availableCount <= 0;
   const category = categories.find((candidate) => candidate.id === product.category)?.label;
@@ -141,11 +140,7 @@ export function ProductSheet({ product, categories, cartQuantity, onAddToCart, o
           </div>
         </div>
       </section>
-      {flyStyle ? (
-        <span className="product-card__fly" style={flyStyle} key={flyKey} aria-hidden="true">
-          <img src={thumbAsset(product.image, 160)} alt="" onAnimationEnd={onFlyEnd} />
-        </span>
-      ) : null}
+      {renderFly(product.image)}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { Check, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { AnimationEvent, CSSProperties, MouseEvent } from 'react';
 import { thumbAsset } from '../lib/assets';
 import { ProductImage } from './ProductImage';
@@ -51,12 +52,24 @@ export const useCartFly = () => {
     if (event.animationName === 'fly-y') window.dispatchEvent(new Event('cart:catch'));
   };
 
-  return { flyStyle, flyKey, launch, onFlyEnd };
+  // Летящая миниатюра рендерится в body: внутри карточки её обрезал бы overflow,
+  // а backdrop-filter сместил бы position: fixed
+  const renderFly = (image: string) =>
+    flyStyle
+      ? createPortal(
+          <span className="product-card__fly" style={flyStyle} key={flyKey} aria-hidden="true">
+            <img src={thumbAsset(image, 160)} alt="" onAnimationEnd={onFlyEnd} />
+          </span>,
+          document.body,
+        )
+      : null;
+
+  return { launch, renderFly };
 };
 
 export function ProductCard({ product, cartQuantity, onAddToCart, onOpen, eager = false, index = 0 }: ProductCardProps) {
   const [added, setAdded] = useState(false);
-  const { flyStyle, flyKey, launch, onFlyEnd } = useCartFly();
+  const { launch, renderFly } = useCartFly();
   const availableCount = Math.max(0, product.stockCount - cartQuantity);
   const unavailable = !product.isActive || availableCount <= 0;
   const stockLabel = getStockLabel(availableCount, cartQuantity);
@@ -109,11 +122,7 @@ export function ProductCard({ product, cartQuantity, onAddToCart, onOpen, eager 
         </div>
       </div>
 
-      {flyStyle ? (
-        <span className="product-card__fly" style={flyStyle} key={flyKey} aria-hidden="true">
-          <img src={thumbAsset(product.image, 160)} alt="" onAnimationEnd={onFlyEnd} />
-        </span>
-      ) : null}
+      {renderFly(product.image)}
     </article>
   );
 }

@@ -2594,3 +2594,14 @@ option {
     transform: translateY(-5px);
   }
 }
+
+/* Полоса прокрутки скрыта, как в нативном приложении. Иначе на Telegram Desktop
+   при открытии шторки она исчезала, страница расширялась и карточки «прыгали» */
+html {
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
