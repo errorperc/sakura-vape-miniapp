@@ -2,12 +2,16 @@ import {
   BadgeCheck,
   CalendarClock,
   Crown,
+  Flower,
+  Flower2,
   History,
   ShoppingBag,
   Sparkles,
+  Sprout,
   UserRound,
   WalletCards,
 } from 'lucide-react';
+import type { CSSProperties } from 'react';
 import { EmptyState } from '../components/EmptyState';
 import { OrderList } from '../components/OrderList';
 import type { Order, TelegramUserProfile } from '../types';
@@ -19,24 +23,41 @@ interface ProfilePageProps {
   isAdmin: boolean;
 }
 
-const getClientStatus = (orders: Order[]) => {
-  const total = orders.reduce((sum, order) => sum + order.total, 0);
+// Уровни клиента: следующий открывается по числу заказов ИЛИ по сумме покупок
+const levels = [
+  { name: 'Бутон', text: 'Добро пожаловать в Sakura', icon: Sprout, orders: 0, spent: 0 },
+  { name: 'Первый цвет', text: 'Первый заказ уже с вами', icon: Flower, orders: 1, spent: 0 },
+  { name: 'Цветение', text: 'Вы — наш постоянный гость', icon: Flower2, orders: 3, spent: 5000 },
+  { name: 'Сакура', text: 'Любимый клиент магазина', icon: Sparkles, orders: 7, spent: 15000 },
+  { name: 'Ханами', text: 'Высший уровень — VIP', icon: Crown, orders: 15, spent: 30000 },
+];
 
-  if (orders.length >= 15 || total >= 20000) {
-    return 'VIP';
-  }
+const getClientLevel = (orders: Order[]) => {
+  const counted = orders.filter((order) => order.status !== 'Отменен');
+  const count = counted.length;
+  const spent = counted.reduce((sum, order) => sum + order.total, 0);
+  const reached = (level: (typeof levels)[number]) => count >= level.orders || (level.spent > 0 && spent >= level.spent);
+  const index = levels.reduce((best, level, candidate) => (reached(level) ? candidate : best), 0);
+  const next = levels[index + 1];
 
-  if (orders.length >= 10 || total >= 10000) {
-    return 'Постоянный клиент';
-  }
+  if (!next) return { level: levels[index], index, next: null, progress: 1, hint: 'Максимальный уровень' };
 
-  return 'Новичок';
+  const ordersLeft = Math.max(0, next.orders - count);
+  const spentLeft = Math.max(0, next.spent - spent);
+  const progress = Math.max(count / next.orders, next.spent ? spent / next.spent : 0);
+  const hint = next.spent
+    ? `Ещё ${ordersLeft} ${ordersLeft === 1 ? 'заказ' : ordersLeft < 5 ? 'заказа' : 'заказов'} или ${spentLeft.toLocaleString('ru-RU')} ₽ до «${next.name}»`
+    : `Оформите первый заказ — откроется «${next.name}»`;
+
+  return { level: levels[index], index, next, progress: Math.min(1, progress), hint };
 };
 
 export function ProfilePage({ user, orders, isAdmin }: ProfilePageProps) {
   const name = formatUserName(user);
   const total = orders.reduce((sum, order) => sum + order.total, 0);
   const lastOrder = orders[0];
+  const clientLevel = getClientLevel(orders);
+  const LevelIcon = clientLevel.level.icon;
   const initials = `${user.firstName[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase();
 
   return (
@@ -72,6 +93,26 @@ export function ProfilePage({ user, orders, isAdmin }: ProfilePageProps) {
         </div>
       </section>
 
+      <section className={`level-card level-card--${clientLevel.index}`} aria-label="Уровень клиента">
+        <span className="level-card__icon" aria-hidden="true">
+          <LevelIcon size={22} />
+        </span>
+        <div className="level-card__info">
+          <span>Ваш уровень</span>
+          <strong>{clientLevel.level.name}</strong>
+          <small>{clientLevel.level.text}</small>
+        </div>
+        <div className="level-card__steps" aria-hidden="true">
+          {levels.map((level, index) => (
+            <i className={index <= clientLevel.index ? 'is-reached' : ''} key={level.name} />
+          ))}
+        </div>
+        <div className="level-card__progress">
+          <span style={{ '--progress': clientLevel.progress } as CSSProperties} />
+        </div>
+        <p>{clientLevel.hint}</p>
+      </section>
+
       <section className="stats-grid" aria-label="Статистика профиля">
         <div className="stat-card">
           <span className="stat-card__icon"><ShoppingBag size={16} aria-hidden="true" /></span>
@@ -92,10 +133,10 @@ export function ProfilePage({ user, orders, isAdmin }: ProfilePageProps) {
               : 'Нет'}
           </strong>
         </div>
-        <div className="stat-card stat-card--accent">
+        <div className="stat-card">
           <span className="stat-card__icon"><Sparkles size={16} aria-hidden="true" /></span>
-          <span>Статус</span>
-          <strong>{getClientStatus(orders)}</strong>
+          <span>Средний чек</span>
+          <strong>{orders.length ? Math.round(total / orders.length).toLocaleString('ru-RU') : 0} ₽</strong>
         </div>
       </section>
 

@@ -28,6 +28,7 @@
     "lucide-react": "^1.17.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "sharp": "^0.34.5",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
@@ -37,7 +38,6 @@
     "@vitejs/plugin-react": "^6.0.2",
     "embedded-postgres": "^17.10.0-beta.17",
     "prisma": "^6.19.3",
-    "sharp": "^0.34.5",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vite": "^8.0.16"

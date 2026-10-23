@@ -9,7 +9,7 @@ export function AgeGate({ onConfirm }: AgeGateProps) {
   return (
     <section className="age-gate" aria-labelledby="age-title">
       <div className="age-gate__brand" aria-hidden="true">
-        <img src={publicAsset('assets/sakura-logo.png')} alt="" />
+        <img src={publicAsset('assets/sakura-logo.webp')} alt="" />
         <span>Sakura Vape</span>
       </div>
       <div className="age-gate__badge">

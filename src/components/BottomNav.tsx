@@ -1,5 +1,6 @@
 import { Home, PackageSearch, ReceiptText, ShoppingBag, Truck, UserRound } from 'lucide-react';
 import type { View } from '../types';
+import { segmentStyle } from '../lib/segment';
 
 interface BottomNavProps {
   activeView: View;
@@ -25,7 +26,7 @@ export function BottomNav({ activeView, isAdmin, cartCount, onNavigate }: Bottom
     : navItems;
 
   return (
-    <nav className="bottom-nav" aria-label="Основная навигация">
+    <nav className="bottom-nav" aria-label="Основная навигация" style={segmentStyle(items.findIndex((item) => item.view === activeView), items.length)}>
       {items.map((item) => {
         const Icon = item.icon;
         const isActive = activeView === item.view;
@@ -44,7 +45,7 @@ export function BottomNav({ activeView, isAdmin, cartCount, onNavigate }: Bottom
             <span className="bottom-nav__icon">
               <Icon size={20} strokeWidth={isActive ? 2.6 : 2.1} aria-hidden="true" />
               {item.view === 'cart' && cartCount > 0 ? (
-                <span className="bottom-nav__badge">{cartCount}</span>
+                <span className="bottom-nav__badge" key={cartCount}>{cartCount}</span>
               ) : null}
             </span>
             <span className="bottom-nav__label">{item.label}</span>

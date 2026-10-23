@@ -20,6 +20,9 @@ import { publicAsset } from '../lib/assets';
 import type { CatalogCategory, DeliverySettings, Product, ProductCategory } from '../types';
 import { CategoryManagement } from './CategoryManagement';
 import { TeamManagement } from './TeamManagement';
+import { ProductImage } from './ProductImage';
+import { segmentStyle } from '../lib/segment';
+import { findModelImage, galleryImages, isPlaceholderImage, placeholderImage } from '../lib/modelImages';
 
 type AdminTab = 'catalog' | 'settings' | 'team';
 type CatalogSection = 'products' | 'categories';
@@ -51,7 +54,7 @@ const makeEmptyProduct = (categories: CatalogCategory[]): Product => ({
   stock: 'in_stock',
   stockCount: 1,
   isActive: true,
-  image: 'products/hqd-cuvie-plus.png',
+  image: placeholderImage,
   accent: '#f52b88',
   nicotine: '20 мг',
 });
@@ -114,6 +117,9 @@ export function AdminPanel({
   const [isProductEditorOpen, setIsProductEditorOpen] = useState(false);
   const [deliveryDraft, setDeliveryDraft] = useState<DeliverySettings>(deliverySettings);
   const [deliverySaved, setDeliverySaved] = useState(false);
+  // Пока фото не выбрано вручную, подставляем фото той же модели
+  const [imageTouched, setImageTouched] = useState(false);
+  const gallery = useMemo(() => galleryImages(products), [products]);
 
   const isEditing = useMemo(() => Boolean(editingId), [editingId]);
   const visibleProducts = useMemo(() => products, [products]);
@@ -140,6 +146,20 @@ export function AdminPanel({
     setDraft((current) => ({ ...current, [key]: value }));
   };
 
+  const updateIdentity = (key: 'brand' | 'name', value: string) => {
+    setDraft((current) => {
+      const next = { ...current, [key]: value };
+      if (imageTouched) return next;
+      const modelImage = findModelImage(products, next.brand, next.name, editingId ?? undefined);
+      return { ...next, image: modelImage ?? placeholderImage };
+    });
+  };
+
+  const pickImage = (image: string) => {
+    setImageTouched(true);
+    updateDraft('image', image);
+  };
+
   const resetForm = () => {
     setDraft(makeEmptyProduct(categories));
     setEditingId(null);
@@ -155,6 +175,7 @@ export function AdminPanel({
   const openNewProduct = () => {
     setDraft(makeEmptyProduct(categories));
     setEditingId(null);
+    setImageTouched(false);
     setIsProductEditorOpen(true);
     focusProductEditor();
   };
@@ -164,9 +185,9 @@ export function AdminPanel({
     if (!file || !file.type.startsWith('image/')) return;
 
     try {
-      updateDraft('image', await convertFileToWebpDataUrl(file));
+      pickImage(await convertFileToWebpDataUrl(file));
     } catch {
-      updateDraft('image', await readFileAsDataUrl(file));
+      pickImage(await readFileAsDataUrl(file));
     }
   };
 
@@ -189,6 +210,7 @@ export function AdminPanel({
   const startEdit = (product: Product) => {
     setDraft(product);
     setEditingId(product.id);
+    setImageTouched(!isPlaceholderImage(product.image));
     setIsProductEditorOpen(true);
     focusProductEditor();
   };
@@ -210,7 +232,7 @@ export function AdminPanel({
         <span className="admin-badge">{isOwner ? 'Владелец' : 'Админ'}</span>
       </header>
 
-      <nav className="admin-tabs" aria-label="Разделы админ-панели">
+      <nav className="admin-tabs" aria-label="Разделы админ-панели" style={segmentStyle(tabs.findIndex((tab) => tab.id === activeTab), tabs.length)}>
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -230,7 +252,7 @@ export function AdminPanel({
       <div className="admin-tab-content" key={activeTab}>
         {activeTab === 'catalog' ? (
           <>
-            <div className="admin-catalog-switch" role="tablist" aria-label="Управление каталогом">
+            <div className="admin-catalog-switch" role="tablist" aria-label="Управление каталогом" style={segmentStyle(catalogSection === 'products' ? 0 : 1, 2)}>
               <button
                 className={catalogSection === 'products' ? 'is-active' : ''}
                 type="button"
@@ -281,12 +303,12 @@ export function AdminPanel({
 
                     <label>
                       Название
-                      <input required value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} />
+                      <input required value={draft.name} onChange={(event) => updateIdentity('name', event.target.value)} placeholder="Sopro 20000 Арбуз" />
                     </label>
                     <div className="form-row">
                       <label>
                         Бренд
-                        <input required value={draft.brand} onChange={(event) => updateDraft('brand', event.target.value)} />
+                        <input required value={draft.brand} onChange={(event) => updateIdentity('brand', event.target.value)} placeholder="Waka" />
                       </label>
                       <label>
                         Цена
@@ -336,11 +358,29 @@ export function AdminPanel({
                           Ссылка или data URL
                           <div className="input-with-icon">
                             <Link size={16} aria-hidden="true" />
-                            <input value={draft.image} onChange={(event) => updateDraft('image', event.target.value)} />
+                            <input value={draft.image.startsWith('data:') ? 'Загруженное фото' : draft.image} onChange={(event) => pickImage(event.target.value)} />
                           </div>
                         </label>
                       </div>
                     </section>
+
+                    {!imageTouched && !isPlaceholderImage(draft.image) ? (
+                      <p className="form-hint">Фото подставлено от этой же модели. Можно выбрать другое ниже.</p>
+                    ) : null}
+                    <div className="image-gallery" role="listbox" aria-label="Готовые фото">
+                      {gallery.map((image) => (
+                        <button
+                          className={`image-gallery__item ${draft.image === image ? 'is-active' : ''}`}
+                          type="button"
+                          role="option"
+                          aria-selected={draft.image === image}
+                          key={image}
+                          onClick={() => pickImage(image)}
+                        >
+                          <ProductImage src={image} width={160} />
+                        </button>
+                      ))}
+                    </div>
 
                     <label className="switch-row">
                       <span>Показывать на витрине<small>Скрытые товары не видны покупателям</small></span>
@@ -367,7 +407,7 @@ export function AdminPanel({
                   <div className="admin-products__list">
                     {visibleProducts.map((product) => (
                       <article className="admin-product-row" key={product.id}>
-                        <img src={publicAsset(product.image)} alt="" loading="lazy" />
+                        <ProductImage src={product.image} width={160} />
                         <div>
                           <strong>{product.name}</strong>
                           <span>{product.brand} · {product.price.toLocaleString('ru-RU')} ₽ · {product.stockCount} шт.</span>

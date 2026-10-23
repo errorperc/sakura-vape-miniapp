@@ -93,12 +93,14 @@ export function HomePage({
 
       {visibleProducts.length > 0 ? (
         <div className="product-grid">
-          {visibleProducts.map((product) => (
+          {visibleProducts.map((product, index) => (
             <ProductCard
               product={product}
               cartQuantity={getCartQuantity(product.id)}
               onAddToCart={onAddToCart}
               onOpen={onOpenProduct}
+              eager={index < 4}
+              index={index}
               key={product.id}
             />
           ))}

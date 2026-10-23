@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { OrderList } from '../components/OrderList';
 import { getAdminStats } from '../lib/ordersApi';
+import { segmentStyle } from '../lib/segment';
 import type { AdminStats, ManualOrderDraft, Order, OrderStatus, Product, StatsPeriod } from '../types';
 
 interface AdminOrdersPageProps {
@@ -55,7 +56,7 @@ function SalesStats({ orders }: { orders: Order[] }) {
 
   return (
     <>
-      <div className="segmented segmented--small" role="tablist" aria-label="Период">
+      <div className="segmented segmented--small" role="tablist" aria-label="Период" style={segmentStyle(periods.findIndex((item) => item.id === period), periods.length)}>
         {periods.map((item) => (
           <button
             className={period === item.id ? 'is-active' : ''}
@@ -220,7 +221,7 @@ export function AdminOrdersPage({ orders, products, onStatusChange, onCreateManu
         {newOrdersCount > 0 ? <span className="pill pill--accent">{newOrdersCount} новых</span> : null}
       </header>
 
-      <div className="segmented" role="tablist" aria-label="Разделы продаж">
+      <div className="segmented" role="tablist" aria-label="Разделы продаж" style={segmentStyle(['orders', 'stats', 'sale'].indexOf(section), 3)}>
         <button className={section === 'orders' ? 'is-active' : ''} type="button" role="tab" aria-selected={section === 'orders'} onClick={() => setSection('orders')}>
           <ReceiptText size={15} aria-hidden="true" /> Заказы
         </button>

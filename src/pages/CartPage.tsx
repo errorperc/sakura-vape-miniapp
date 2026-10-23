@@ -15,7 +15,7 @@ import { useEffect, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import { EmptyState } from '../components/EmptyState';
 import { getAddressValidationMessage } from '../lib/addressApi';
-import { publicAsset } from '../lib/assets';
+import { ProductImage } from '../components/ProductImage';
 import { formatOrderId } from '../lib/ordersApi';
 import type { CheckoutDraft, DeliverySettings, Order, Product } from '../types';
 
@@ -120,7 +120,7 @@ export function CartPage({
         {items.map(({ product, quantity }) => (
           <article className="cart-item" key={product.id}>
             <div className="cart-item__media" style={{ '--accent': product.accent } as CSSProperties}>
-              <img src={publicAsset(product.image)} alt="" loading="lazy" />
+              <ProductImage src={product.image} width={160} />
             </div>
             <div className="cart-item__info">
               <strong>{product.name}</strong>

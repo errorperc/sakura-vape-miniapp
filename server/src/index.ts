@@ -42,6 +42,44 @@ fs.mkdirSync(uploadsDir, { recursive: true });
 // Имена файлов уникальные (uuid), поэтому их можно кэшировать навсегда
 app.use('/uploads', express.static(uploadsDir, { immutable: true, maxAge: '365d', fallthrough: false }));
 
+// Миниатюры WebP нужной ширины: /thumbs/480/products/x.webp или /thumbs/480/uploads/y.webp.
+// Нарезаются один раз и кэшируются на диске — в карточку не грузится фото 1254×1254.
+const thumbWidths = new Set([160, 480, 900]);
+const publicDir = path.resolve(process.env.PUBLIC_DIR ?? 'public');
+const thumbsDir = path.resolve(process.env.THUMBS_DIR ?? 'data/thumbs');
+
+app.get(/^\/thumbs\/(\d+)\/(.+)$/, async (request, response) => {
+  const params = request.params as unknown as Record<string, string>;
+  const width = Number(params[0]);
+  const relative = path.normalize(decodeURIComponent(params[1])).replace(/^([/\\])+/, '');
+  const fromUploads = relative.startsWith(`uploads${path.sep}`);
+  const sourceRoot = fromUploads ? uploadsDir : publicDir;
+  const source = path.join(sourceRoot, fromUploads ? relative.slice('uploads'.length + 1) : relative);
+
+  if (!thumbWidths.has(width) || !source.startsWith(sourceRoot + path.sep) || !/\.(webp|png|jpe?g)$/i.test(source)) {
+    response.status(404).end();
+    return;
+  }
+
+  const target = path.join(thumbsDir, String(width), `${relative}.webp`);
+  try {
+    if (!fs.existsSync(target)) {
+      if (!fs.existsSync(source)) {
+        response.status(404).end();
+        return;
+      }
+      const { default: sharp } = await import('sharp');
+      await fs.promises.mkdir(path.dirname(target), { recursive: true });
+      await sharp(source).resize({ width, withoutEnlargement: true }).webp({ quality: 78, effort: 5 }).toFile(target);
+    }
+    response.setHeader('Cache-Control', 'public, max-age=2592000');
+    response.type('image/webp').sendFile(target);
+  } catch (error) {
+    console.error('[thumbs]', error);
+    response.status(500).end();
+  }
+});
+
 interface TelegramInitUser {
   id: number;
   first_name: string;
@@ -1317,6 +1355,7 @@ if (staticDir && fs.existsSync(staticDir)) {
     index: false,
     setHeaders: (response, filePath) => {
       if (filePath.includes(`${path.sep}assets${path.sep}`)) response.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      else if (/.(webp|png|jpe?g)$/i.test(filePath)) response.setHeader('Cache-Control', 'public, max-age=604800');
     },
   }));
   // Telegram любит кэшировать оболочку приложения — index.html всегда отдаём свежим

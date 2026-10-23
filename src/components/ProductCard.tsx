@@ -1,7 +1,8 @@
 import { Check, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { CSSProperties, MouseEvent } from 'react';
-import { publicAsset } from '../lib/assets';
+import { thumbAsset } from '../lib/assets';
+import { ProductImage } from './ProductImage';
 import type { Product } from '../types';
 
 interface ProductCardProps {
@@ -9,6 +10,8 @@ interface ProductCardProps {
   cartQuantity: number;
   onAddToCart: (product: Product) => boolean;
   onOpen: (product: Product) => void;
+  eager?: boolean;
+  index?: number;
 }
 
 export const getStockClassName = (stockCount: number) => {
@@ -46,7 +49,7 @@ export const useCartFly = () => {
   return { flyStyle, flyKey, launch };
 };
 
-export function ProductCard({ product, cartQuantity, onAddToCart, onOpen }: ProductCardProps) {
+export function ProductCard({ product, cartQuantity, onAddToCart, onOpen, eager = false, index = 0 }: ProductCardProps) {
   const [added, setAdded] = useState(false);
   const { flyStyle, flyKey, launch } = useCartFly();
   const availableCount = Math.max(0, product.stockCount - cartQuantity);
@@ -75,9 +78,10 @@ export function ProductCard({ product, cartQuantity, onAddToCart, onOpen }: Prod
       onClick={() => onOpen(product)}
       onKeyDown={(event) => event.key === 'Enter' && onOpen(product)}
       aria-label={`${product.brand} ${product.name}`}
+      style={{ '--i': Math.min(index, 8) } as CSSProperties}
     >
       <div className="product-card__media">
-        <img src={publicAsset(product.image)} alt="" loading="lazy" decoding="async" />
+        <ProductImage src={product.image} width={480} eager={eager} />
         {stockLabel ? <span className="product-card__stock">{stockLabel}</span> : null}
       </div>
 
@@ -88,20 +92,21 @@ export function ProductCard({ product, cartQuantity, onAddToCart, onOpen }: Prod
           <strong>{product.price.toLocaleString('ru-RU')} ₽</strong>
           <button
             className={`product-card__add ${added ? 'product-card__add--added' : ''}`}
+            key={added ? 'added' : 'idle'}
             type="button"
             disabled={unavailable}
             onClick={handleAdd}
             aria-label={`Добавить ${product.name} в корзину`}
           >
             {added ? <Check size={17} strokeWidth={3} aria-hidden="true" /> : <Plus size={18} strokeWidth={2.75} aria-hidden="true" />}
-            {cartQuantity > 0 ? <em>{cartQuantity}</em> : null}
+            {cartQuantity > 0 ? <em key={cartQuantity}>{cartQuantity}</em> : null}
           </button>
         </div>
       </div>
 
       {flyStyle ? (
         <span className="product-card__fly" style={flyStyle} key={flyKey} aria-hidden="true">
-          <img src={publicAsset(product.image)} alt="" />
+          <img src={thumbAsset(product.image, 160)} alt="" />
         </span>
       ) : null}
     </article>

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { getTeamMembers, removeTeamMember, saveTeamMember } from '../lib/teamApi';
 import type { TeamMember } from '../types';
+import { segmentStyle } from '../lib/segment';
 
 type AssignableRole = 'admin' | 'manager';
 
@@ -88,7 +89,7 @@ export function TeamManagement() {
       </div>
 
       <form className="team-add-form" onSubmit={submit}>
-        <div className="team-role-switch" aria-label="Роль аккаунта">
+        <div className="team-role-switch" aria-label="Роль аккаунта" style={segmentStyle(role === 'manager' ? 0 : 1, 2)}>
           <button className={role === 'manager' ? 'is-active' : ''} type="button" onClick={() => setRole('manager')}>
             <Headset size={16} aria-hidden="true" />
             Менеджер

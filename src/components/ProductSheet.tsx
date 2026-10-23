@@ -1,6 +1,7 @@
 import { Check, Plus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { publicAsset } from '../lib/assets';
+import { thumbAsset } from '../lib/assets';
+import { ProductImage } from './ProductImage';
 import type { CatalogCategory, Product } from '../types';
 import { getStockLabel, useCartFly } from './ProductCard';
 
@@ -50,7 +51,7 @@ export function ProductSheet({ product, categories, cartQuantity, onAddToCart, o
           <X size={18} aria-hidden="true" />
         </button>
         <div className="sheet__media">
-          <img src={publicAsset(product.image)} alt={product.name} />
+          <ProductImage src={product.image} width={900} alt={product.name} eager />
         </div>
         <div className="sheet__body">
           <div className="sheet__title">
@@ -87,7 +88,7 @@ export function ProductSheet({ product, categories, cartQuantity, onAddToCart, o
       </section>
       {flyStyle ? (
         <span className="product-card__fly" style={flyStyle} key={flyKey} aria-hidden="true">
-          <img src={publicAsset(product.image)} alt="" />
+          <img src={thumbAsset(product.image, 160)} alt="" />
         </span>
       ) : null}
     </div>

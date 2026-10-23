@@ -14,13 +14,13 @@
 		Expires "0"
 	}
 
-	@static path /assets/* /sakura-logo.png
+	@static path /assets/*
 	header @static Cache-Control "public, max-age=31536000, immutable"
 
 	@productImages path /products/*
-	header @productImages Cache-Control "public, max-age=300"
+	header @productImages Cache-Control "public, max-age=604800"
 
-	@api path /api/* /uploads/*
+	@api path /api/* /uploads/* /thumbs/*
 	handle @api {
 		reverse_proxy api:4000
 	}
