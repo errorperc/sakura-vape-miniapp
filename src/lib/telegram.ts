@@ -77,7 +77,15 @@ export const applyTelegramTheme = () => {
     }
   };
 
-  root.dataset.theme = isDark ? 'dark' : 'light';
+  // Магазин всегда в тёмной теме: фото товаров сняты на тёмном фоне
+  root.dataset.theme = 'dark';
+  try {
+    app.setHeaderColor?.('#000000');
+    app.setBackgroundColor?.('#000000');
+    app.setBottomBarColor?.('#000000');
+  } catch {
+    // Старые клиенты Telegram не поддерживают смену цветов
+  }
   setVar('--tg-bg', params.bg_color ?? '#0b0b0f');
   setVar('--tg-text', params.text_color ?? '#f7f7fb');
   setVar('--tg-hint', params.hint_color ?? '#8c8994');

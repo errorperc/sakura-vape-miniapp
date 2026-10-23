@@ -9,18 +9,18 @@ interface BottomNavProps {
 }
 
 const navItems: Array<{ view: View; label: string; icon: typeof Home }> = [
-  { view: 'home', label: 'Главная', icon: Home },
-  { view: 'profile', label: 'Профиль', icon: UserRound },
+  { view: 'home', label: 'Каталог', icon: Home },
   { view: 'cart', label: 'Корзина', icon: ShoppingBag },
   { view: 'delivery', label: 'Доставка', icon: Truck },
+  { view: 'profile', label: 'Профиль', icon: UserRound },
 ];
 
 export function BottomNav({ activeView, isAdmin, cartCount, onNavigate }: BottomNavProps) {
   const items = isAdmin
     ? [
         ...navItems,
-        { view: 'orders' as View, label: 'Заказы', icon: ReceiptText },
-        { view: 'admin' as View, label: 'Админ', icon: PackageSearch },
+        { view: 'orders' as View, label: 'Продажи', icon: ReceiptText },
+        { view: 'admin' as View, label: 'Магазин', icon: PackageSearch },
       ]
     : navItems;
 

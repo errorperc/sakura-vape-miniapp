@@ -1,32 +1,9 @@
 import { getTelegramWebApp } from './telegram';
-import type { ManualOrderDraft, Order, OrderStatus } from '../types';
+import type { AdminStats, ManualOrderDraft, Order, OrderStatus, StatsPeriod } from '../types';
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '');
 
-export const notifyManagerAboutOrder = async (order: Order) => {
-  if (!apiBaseUrl) {
-    throw new Error('API URL is not configured.');
-  }
-
-  const response = await fetch(`${apiBaseUrl}/api/order-notifications`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      initData: getTelegramWebApp().initData,
-      order,
-    }),
-  });
-
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? 'Order notification failed.');
-  }
-};
-
 const authedRequest = async <T>(path: string, init?: RequestInit): Promise<T> => {
-  if (!apiBaseUrl) {
-    throw new Error('API URL is not configured.');
-  }
 
   const initData = getTelegramWebApp().initData;
   if (!initData) {
@@ -71,3 +48,9 @@ export const updateAdminOrderStatus = (orderId: string, status: OrderStatus) =>
     method: 'PATCH',
     body: JSON.stringify({ status }),
   });
+
+export const getAdminStats = (period: StatsPeriod) =>
+  authedRequest<AdminStats>(`/api/admin/stats?period=${period}`);
+
+// Короткий номер заказа — тот же, что в сообщении менеджеру в Telegram
+export const formatOrderId = (id: string) => `№${id.replace(/^order-/, '').slice(0, 8).toUpperCase()}`;

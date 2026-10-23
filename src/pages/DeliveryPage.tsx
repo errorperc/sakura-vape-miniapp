@@ -14,16 +14,13 @@ export function DeliveryPage({ settings }: DeliveryPageProps) {
 
   return (
     <main className="page delivery-page">
-      <div className="page-header">
+      <header className="large-title">
         <div>
-          <span className="eyebrow">Доставка</span>
-          <h1>Как получить заказ</h1>
+          <h1>Доставка</h1>
+          <p>Как получить заказ</p>
         </div>
-        <span className="cost-badge">
-          <Bike size={14} aria-hidden="true" />
-          {settings.priceLabel}
-        </span>
-      </div>
+        <span className="pill pill--accent">{settings.priceLabel}</span>
+      </header>
 
       <section className="delivery-services" aria-label="Информация о доставке">
         <div className="delivery-services__heading">

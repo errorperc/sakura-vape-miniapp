@@ -4,9 +4,6 @@ import { getTelegramWebApp } from './telegram';
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '');
 
 const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
-  if (!apiBaseUrl) {
-    throw new Error('API URL is not configured.');
-  }
 
   const response = await fetch(`${apiBaseUrl}${path}`, init);
 

@@ -1,6 +1,8 @@
 import express from 'express';
 import { PrismaClient, OrderStatus, UserRole } from '@prisma/client';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -10,7 +12,10 @@ const ownerTelegramId = process.env.OWNER_TELEGRAM_ID ?? process.env.ADMIN_TELEG
 const fallbackManagerTelegramId = process.env.MANAGER_TELEGRAM_ID ?? ownerTelegramId;
 const publicAppUrl = process.env.PUBLIC_APP_URL ?? 'https://api.185-246-217-69.sslip.io/';
 const publicAppOrigin = new URL(publicAppUrl).origin;
-const notificationCooldowns = new Map<number, number>();
+const uploadsDir = path.resolve(process.env.UPLOADS_DIR ?? 'data/uploads');
+// Локальный запуск без Caddy: Express сам отдаёт собранный мини-апп из dist/
+const staticDir = process.env.SERVE_STATIC === '1' ? path.resolve('dist') : '';
+const orderCooldowns = new Map<number, number>();
 const addressSuggestionCache = new Map<string, { expiresAt: number; suggestions: AddressSuggestion[] }>();
 
 app.set('trust proxy', 1);
@@ -32,6 +37,10 @@ app.use((request, response, next) => {
 
   next();
 });
+
+fs.mkdirSync(uploadsDir, { recursive: true });
+// Имена файлов уникальные (uuid), поэтому их можно кэшировать навсегда
+app.use('/uploads', express.static(uploadsDir, { immutable: true, maxAge: '365d', fallthrough: false }));
 
 interface TelegramInitUser {
   id: number;
@@ -199,16 +208,7 @@ app.get('/api/health', async (_request, response) => {
 });
 
 app.post('/api/telegram/webhook', async (request, response) => {
-  const update = isRecord(request.body) ? request.body : {};
-  const message = isRecord(update.message) ? update.message : null;
-  const chat = message && isRecord(message.chat) ? message.chat : null;
-  const chatId = typeof chat?.id === 'number' || typeof chat?.id === 'string' ? chat.id : null;
-  const text = textValue(message?.text, 120);
-
-  if (chatId && (!text || text.startsWith('/start') || text.startsWith('/shop'))) {
-    await sendShopLaunchMessage(chatId).catch(() => false);
-  }
-
+  await handleTelegramUpdate(request.body).catch((error) => console.error('[bot]', error));
   response.json({ ok: true });
 });
 
@@ -236,7 +236,7 @@ const requireAuthenticatedUser = async (request: express.Request, response: expr
   const telegramUser = validateTelegramInitData(request.header('x-telegram-init-data') ?? request.body?.initData);
 
   if (!telegramUser) {
-    response.status(401).json({ error: 'Open the shop inside Telegram and try again.' });
+    response.status(401).json({ error: 'Откройте магазин внутри Telegram и попробуйте ещё раз.' });
     return null;
   }
 
@@ -248,7 +248,7 @@ const requireAdmin = async (request: express.Request, response: express.Response
   if (!admin) return null;
 
   if (admin.role !== UserRole.admin && admin.role !== UserRole.owner) {
-    response.status(403).json({ error: 'Admin access denied.' });
+    response.status(403).json({ error: 'Нет доступа к админке.' });
     return null;
   }
 
@@ -260,7 +260,7 @@ const requireOwner = async (request: express.Request, response: express.Response
   if (!owner) return null;
 
   if (owner.role !== UserRole.owner || owner.telegramId.toString() !== ownerTelegramId) {
-    response.status(403).json({ error: 'Only the main administrator can manage the team.' });
+    response.status(403).json({ error: 'Командой управляет только владелец магазина.' });
     return null;
   }
 
@@ -439,7 +439,7 @@ const productInput = (body: unknown) => {
   const categoryId = textValue(payload.category ?? payload.categoryId, 80);
   const description = textValue(payload.description, 600);
   const flavor = textValue(payload.taste ?? payload.flavor, 180);
-  const imageUrl = textValue(payload.image ?? payload.imageUrl, 2_000_000) || '/products/hqd-cuvie-plus.png';
+  const imageUrl = textValue(payload.image ?? payload.imageUrl, 4_000_000) || '/products/hqd-cuvie-plus.png';
   const price = Math.max(0, Math.round(numberValue(payload.price)));
   const quantity = Math.max(0, Math.floor(numberValue(payload.stockCount ?? payload.quantity)));
   const accent = textValue(payload.accent, 20) || '#f52b88';
@@ -463,6 +463,266 @@ const productInput = (body: unknown) => {
     nicotine,
     isActive,
   };
+};
+
+// ---------- Фото товаров ----------
+
+const imageExtensions: Record<string, string> = { webp: 'webp', png: 'png', jpeg: 'jpg', jpg: 'jpg' };
+
+// Админка присылает фото как data URL (уже сжатое в WebP). Храним его файлом,
+// а в базе — короткую ссылку: так каталог грузится быстро и фото кэшируются.
+const storeUploadedImage = async (imageUrl: string) => {
+  const match = imageUrl.match(/^data:image\/(webp|png|jpe?g);base64,([a-z0-9+/=]+)$/i);
+  if (!match) return imageUrl;
+
+  const fileName = `${randomUUID()}.${imageExtensions[match[1].toLowerCase()]}`;
+  await fs.promises.writeFile(path.join(uploadsDir, fileName), Buffer.from(match[2], 'base64'));
+  return `/uploads/${fileName}`;
+};
+
+// ---------- Заказы и уведомления ----------
+
+const orderInclude = { items: { include: { product: { select: { brand: true } } } }, user: true } as const;
+
+const findFullOrder = (id: string) => prisma.order.findUnique({ where: { id }, include: orderInclude });
+
+type FullOrder = NonNullable<Awaited<ReturnType<typeof findFullOrder>>>;
+
+const formatRub = (value: number) => `${value.toLocaleString('ru-RU')} ₽`;
+const shortOrderId = (id: string) => id.slice(0, 8).toUpperCase();
+const offlineAddress = 'Офлайн продажа';
+
+const staffRoles: UserRole[] = [UserRole.manager, UserRole.admin, UserRole.owner];
+
+const managerRecipientIds = async () => {
+  const managers = await prisma.user.findMany({ where: { role: UserRole.manager }, select: { telegramId: true } });
+  if (managers.length > 0) return managers.map((manager) => manager.telegramId.toString());
+  return [fallbackManagerTelegramId].filter((telegramId) => /^-?\d+$/.test(telegramId));
+};
+
+const statusButtons: Array<[OrderStatus, string]> = [
+  [OrderStatus.PROCESSING, '✅ Принять'],
+  [OrderStatus.OUT_FOR_DELIVERY, '🚚 В доставке'],
+  [OrderStatus.COMPLETED, '🏁 Выполнен'],
+  [OrderStatus.CANCELED, '✖️ Отменить'],
+];
+
+const orderStatusKeyboard = (order: { id: string; status: OrderStatus }) => {
+  if (order.status === OrderStatus.COMPLETED || order.status === OrderStatus.CANCELED) {
+    return { inline_keyboard: [] };
+  }
+
+  const buttons = statusButtons
+    .filter(([status]) => status !== order.status)
+    .map(([status, text]) => ({ text, callback_data: `st:${order.id}:${status}` }));
+  return { inline_keyboard: [buttons.slice(0, 2), buttons.slice(2)] };
+};
+
+const managerOrderText = (order: FullOrder) => {
+  const user = order.user;
+  const username = user.username ? `@${escapeHtml(user.username)}` : 'username не указан';
+  const itemLines = order.items.map((item, index) => {
+    const brand = item.product?.brand ? ` · ${escapeHtml(item.product.brand)}` : '';
+    return `${index + 1}. <b>${escapeHtml(item.productTitle)}</b>${brand}\n   ${item.quantity} × ${formatRub(item.priceAtPurchase)} = ${formatRub(item.quantity * item.priceAtPurchase)}`;
+  });
+
+  return [
+    `🌸 <b>Заказ №${shortOrderId(order.id)}</b> · ${statusToClient[order.status]}`,
+    '',
+    `<b>Покупатель:</b> <a href="tg://user?id=${user.telegramId}">${escapeHtml(user.firstName)}</a>`,
+    `<b>Telegram:</b> ${username} · <code>${user.telegramId}</code>`,
+    `<b>Имя для заказа:</b> ${escapeHtml(order.deliveryName)}`,
+    '',
+    ...itemLines,
+    '',
+    `<b>Итого:</b> ${formatRub(order.totalPrice)}`,
+    `<b>Адрес:</b> ${escapeHtml(order.deliveryAddress)}`,
+    `<b>Комментарий:</b> ${escapeHtml(order.deliveryComment || 'нет')}`,
+  ].join('\n');
+};
+
+const notifyManagersAboutOrder = async (order: FullOrder) => {
+  const recipients = await managerRecipientIds();
+  if (recipients.length === 0) {
+    console.error('[bot] Некому отправить заказ: укажите MANAGER_TELEGRAM_ID или назначьте менеджера.');
+    return;
+  }
+
+  await Promise.all(
+    recipients.map(async (chatId) => {
+      const sent = await callTelegramApi('sendMessage', {
+        chat_id: chatId,
+        text: managerOrderText(order),
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup: orderStatusKeyboard(order),
+      }).catch(() => false);
+      if (!sent) console.error(`[bot] Не удалось отправить заказ ${chatId}. Менеджер должен написать боту /start.`);
+    }),
+  );
+};
+
+const customerStatusText: Partial<Record<OrderStatus, string>> = {
+  PROCESSING: 'принят и собирается',
+  OUT_FOR_DELIVERY: 'передан курьеру',
+  COMPLETED: 'выполнен. Спасибо за покупку! 🌸',
+  CANCELED: 'отменён. Если это ошибка — напишите нам.',
+};
+
+const notifyCustomerAboutStatus = async (order: FullOrder) => {
+  const text = customerStatusText[order.status];
+  // Офлайн-продажу без привязанного клиента уведомлять некому
+  if (!text || (order.deliveryAddress === offlineAddress && order.user.role !== UserRole.user)) return;
+
+  await callTelegramApi('sendMessage', {
+    chat_id: order.user.telegramId.toString(),
+    text: `Заказ №${shortOrderId(order.id)} ${text}`,
+  }).catch(() => false);
+};
+
+// Смена статуса с учётом склада: отмена возвращает товар, восстановление — снова списывает
+const changeOrderStatus = async (orderId: string, nextStatus: OrderStatus, actorId: string) => {
+  const changed = await prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
+    if (!order) throw new Error('Заказ не найден.');
+    if (order.status === nextStatus) return false;
+
+    const cancelling = nextStatus === OrderStatus.CANCELED;
+    const restoring = order.status === OrderStatus.CANCELED;
+
+    if (cancelling || restoring) {
+      for (const item of order.items) {
+        const product = await tx.product.findUnique({ where: { id: item.productId } });
+        if (!product) continue;
+
+        if (restoring && product.quantity < item.quantity) {
+          throw new Error(`Недостаточно товара «${product.title}», чтобы вернуть заказ в работу.`);
+        }
+
+        const newQuantity = product.quantity + (cancelling ? item.quantity : -item.quantity);
+        await tx.product.update({ where: { id: product.id }, data: { quantity: newQuantity } });
+        await tx.stockLog.create({
+          data: {
+            productId: product.id,
+            adminId: actorId,
+            oldQuantity: product.quantity,
+            newQuantity,
+            reason: cancelling ? 'order_cancel' : 'order_restore',
+          },
+        });
+      }
+    }
+
+    await tx.order.update({ where: { id: orderId }, data: { status: nextStatus } });
+    return true;
+  });
+
+  const order = await findFullOrder(orderId);
+  if (!order) throw new Error('Заказ не найден.');
+  if (changed) notifyCustomerAboutStatus(order).catch(() => undefined);
+  return order;
+};
+
+// ---------- Бот ----------
+
+const sendTelegramIdMessage = (chatId: number | string, userId: unknown) =>
+  callTelegramApi('sendMessage', {
+    chat_id: chatId,
+    text: `Ваш Telegram ID: <code>${Number(userId) || '—'}</code>\nID этого чата: <code>${chatId}</code>`,
+    parse_mode: 'HTML',
+  });
+
+const handleStatusCallback = async (query: Record<string, unknown>) => {
+  const from = isRecord(query.from) ? query.from : {};
+  const data = textValue(query.data, 80);
+  const [, orderId, status] = data.split(':');
+  const answer = (text: string) => callTelegramApi('answerCallbackQuery', { callback_query_id: query.id, text });
+
+  if (!orderId || !(status in OrderStatus) || typeof from.id !== 'number') {
+    await answer('Неизвестная команда');
+    return;
+  }
+
+  const telegramId = String(from.id);
+  const actor = await prisma.user.upsert({
+    where: { telegramId: BigInt(telegramId) },
+    update: {},
+    create: { telegramId: BigInt(telegramId), firstName: textValue(from.first_name, 128) || 'Менеджер' },
+  });
+  const isStaff = staffRoles.includes(actor.role) || telegramId === fallbackManagerTelegramId || telegramId === ownerTelegramId;
+  if (!isStaff) {
+    await answer('Нет доступа');
+    return;
+  }
+
+  try {
+    const order = await changeOrderStatus(orderId, status as OrderStatus, actor.id);
+    const message = isRecord(query.message) ? query.message : null;
+    const chat = message && isRecord(message.chat) ? message.chat : null;
+    if (chat && message) {
+      await callTelegramApi('editMessageText', {
+        chat_id: chat.id,
+        message_id: message.message_id,
+        text: managerOrderText(order),
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup: orderStatusKeyboard(order),
+      });
+    }
+    await answer(`Статус: ${statusToClient[order.status]}`);
+  } catch (error) {
+    await answer(error instanceof Error ? error.message.slice(0, 190) : 'Ошибка');
+  }
+};
+
+const handleTelegramUpdate = async (body: unknown) => {
+  const update = isRecord(body) ? body : {};
+
+  if (isRecord(update.callback_query)) {
+    await handleStatusCallback(update.callback_query);
+    return;
+  }
+
+  const message = isRecord(update.message) ? update.message : null;
+  const chat = message && isRecord(message.chat) ? message.chat : null;
+  const chatId = typeof chat?.id === 'number' || typeof chat?.id === 'string' ? chat.id : null;
+  const from = message && isRecord(message.from) ? message.from : {};
+  const text = textValue(message?.text, 120);
+  if (!chatId) return;
+
+  if (text.startsWith('/id')) {
+    await sendTelegramIdMessage(chatId, from.id);
+  } else if (chat?.type === 'private' && (!text || text.startsWith('/start') || text.startsWith('/shop'))) {
+    await sendShopLaunchMessage(chatId);
+  }
+};
+
+// Для локального запуска без постоянного адреса: бот сам забирает обновления (long polling)
+const startTelegramPolling = async () => {
+  await callTelegramApi('deleteWebhook', { drop_pending_updates: false });
+  let offset = 0;
+  console.log('[bot] Получаю обновления через long polling');
+
+  for (;;) {
+    try {
+      const telegramResponse = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ offset, timeout: 30, allowed_updates: ['message', 'callback_query'] }),
+        signal: AbortSignal.timeout(40_000),
+      });
+      const result = (await telegramResponse.json()) as { ok: boolean; result?: Array<{ update_id: number }>; description?: string };
+      if (!result.ok) throw new Error(result.description ?? `HTTP ${telegramResponse.status}`);
+
+      for (const update of result.result ?? []) {
+        offset = update.update_id + 1;
+        await handleTelegramUpdate(update).catch((error) => console.error('[bot]', error));
+      }
+    } catch (error) {
+      console.error('[bot] Нет связи с Telegram, повтор через 5 с:', error instanceof Error ? error.message : error);
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
+  }
 };
 
 app.get('/api/admin/session', async (request, response) => {
@@ -497,12 +757,12 @@ app.post('/api/admin/team', async (request, response) => {
   const role = request.body?.role;
 
   if (!/^\d{5,20}$/.test(telegramIdValue) || (role !== UserRole.admin && role !== UserRole.manager)) {
-    response.status(400).json({ error: 'Telegram ID and team role are required.' });
+    response.status(400).json({ error: 'Укажите Telegram ID и роль.' });
     return;
   }
 
   if (telegramIdValue === ownerTelegramId) {
-    response.status(400).json({ error: 'The main administrator role cannot be changed.' });
+    response.status(400).json({ error: 'Роль владельца изменить нельзя.' });
     return;
   }
 
@@ -523,13 +783,13 @@ app.delete('/api/admin/team/:telegramId', async (request, response) => {
 
   const telegramIdValue = request.params.telegramId;
   if (!/^\d{5,20}$/.test(telegramIdValue) || telegramIdValue === ownerTelegramId) {
-    response.status(400).json({ error: 'The main administrator cannot be removed.' });
+    response.status(400).json({ error: 'Владельца удалить нельзя.' });
     return;
   }
 
   const member = await prisma.user.findUnique({ where: { telegramId: BigInt(telegramIdValue) } });
   if (!member) {
-    response.status(404).json({ error: 'Team member not found.' });
+    response.status(404).json({ error: 'Аккаунт не найден.' });
     return;
   }
 
@@ -666,7 +926,7 @@ app.post('/api/admin/categories', async (request, response) => {
 
   const label = textValue(request.body?.label, 80);
   if (!label) {
-    response.status(400).json({ error: 'Category label is required.' });
+    response.status(400).json({ error: 'Введите название категории.' });
     return;
   }
 
@@ -685,7 +945,7 @@ app.patch('/api/admin/categories/:id', async (request, response) => {
 
   const label = textValue(request.body?.label, 80);
   if (!label) {
-    response.status(400).json({ error: 'Category label is required.' });
+    response.status(400).json({ error: 'Введите название категории.' });
     return;
   }
 
@@ -703,7 +963,7 @@ app.delete('/api/admin/categories/:id', async (request, response) => {
 
   const productsCount = await prisma.product.count({ where: { categoryId: request.params.id } });
   if (productsCount > 0) {
-    response.status(409).json({ error: 'Move products to another category before deleting it.' });
+    response.status(409).json({ error: 'Сначала перенесите товары в другую категорию.' });
     return;
   }
 
@@ -717,16 +977,17 @@ app.post('/api/admin/products', async (request, response) => {
 
   const input = productInput(request.body);
   if (!input) {
-    response.status(400).json({ error: 'Product name, brand and category are required.' });
+    response.status(400).json({ error: 'Укажите название, бренд и категорию товара.' });
     return;
   }
 
   const category = await prisma.category.findUnique({ where: { id: input.categoryId } });
   if (!category) {
-    response.status(400).json({ error: 'Category does not exist.' });
+    response.status(400).json({ error: 'Такой категории нет.' });
     return;
   }
 
+  input.imageUrl = await storeUploadedImage(input.imageUrl);
   const product = await prisma.product.create({ data: input });
 
   await prisma.stockLog.create({
@@ -748,22 +1009,23 @@ app.patch('/api/admin/products/:id', async (request, response) => {
 
   const current = await prisma.product.findUnique({ where: { id: request.params.id } });
   if (!current) {
-    response.status(404).json({ error: 'Product not found.' });
+    response.status(404).json({ error: 'Товар не найден.' });
     return;
   }
 
   const input = productInput({ ...current, ...request.body });
   if (!input) {
-    response.status(400).json({ error: 'Product name, brand and category are required.' });
+    response.status(400).json({ error: 'Укажите название, бренд и категорию товара.' });
     return;
   }
 
   const category = await prisma.category.findUnique({ where: { id: input.categoryId } });
   if (!category) {
-    response.status(400).json({ error: 'Category does not exist.' });
+    response.status(400).json({ error: 'Такой категории нет.' });
     return;
   }
 
+  input.imageUrl = await storeUploadedImage(input.imageUrl);
   const product = await prisma.product.update({
     where: { id: current.id },
     data: input,
@@ -802,126 +1064,6 @@ app.delete('/api/admin/products/:id', async (request, response) => {
   response.status(204).send();
 });
 
-app.post('/api/order-notifications', async (request, response) => {
-  if (!botToken) {
-    response.status(503).json({ error: 'Order notifications are not configured.' });
-    return;
-  }
-
-  const origin = request.header('origin');
-  if (origin && origin !== publicAppOrigin) {
-    response.status(403).json({ error: 'This app origin is not allowed.' });
-    return;
-  }
-
-  const telegramUser = validateTelegramInitData(request.body?.initData);
-  if (!telegramUser) {
-    response.status(401).json({ error: 'Open the shop inside Telegram and try again.' });
-    return;
-  }
-
-  const now = Date.now();
-  const previousNotification = notificationCooldowns.get(telegramUser.id) ?? 0;
-  if (now - previousNotification < 10_000) {
-    response.status(429).json({ error: 'Please wait before sending another order.' });
-    return;
-  }
-
-  const order = request.body?.order;
-  if (!isRecord(order) || !Array.isArray(order.items) || order.items.length === 0 || order.items.length > 15) {
-    response.status(400).json({ error: 'Order data is invalid.' });
-    return;
-  }
-
-  const items = order.items.map((item) => {
-    if (!isRecord(item)) return null;
-
-    const productName = textValue(item.productName, 80);
-    const brand = textValue(item.brand, 50);
-    const quantity = Math.floor(numberValue(item.quantity));
-    const price = Math.round(numberValue(item.price));
-
-    if (!productName || quantity < 1 || quantity > 99 || price < 0) {
-      return null;
-    }
-
-    return { productName, brand, quantity, price };
-  });
-
-  if (items.some((item) => item === null)) {
-    response.status(400).json({ error: 'Order items are invalid.' });
-    return;
-  }
-
-  const delivery = isRecord(order.delivery) ? order.delivery : {};
-  const orderId = textValue(order.id, 64) || 'без номера';
-  const customerName = textValue(delivery.name, 160) || [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' ');
-  const address = textValue(delivery.address, 320) || 'не указан';
-  const comment = textValue(delivery.comment, 500) || 'нет';
-  const total = Math.max(0, Math.round(numberValue(order.total)));
-  const telegramName = [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' ');
-  const username = telegramUser.username ? `@${escapeHtml(telegramUser.username)}` : 'username не указан';
-  const itemLines = items.map((item, index) => {
-    if (!item) return '';
-    const brand = item.brand ? ` · ${escapeHtml(item.brand)}` : '';
-    const lineTotal = (item.price * item.quantity).toLocaleString('ru-RU');
-    return `${index + 1}. <b>${escapeHtml(item.productName)}</b>${brand}\n   ${item.quantity} × ${item.price.toLocaleString('ru-RU')} ₽ = ${lineTotal} ₽`;
-  });
-  const message = [
-    `🌸 <b>Новый заказ ${escapeHtml(orderId)}</b>`,
-    '',
-    `<b>Покупатель:</b> <a href="tg://user?id=${telegramUser.id}">${escapeHtml(telegramName)}</a>`,
-    `<b>Telegram:</b> ${username} · <code>${telegramUser.id}</code>`,
-    `<b>Имя для заказа:</b> ${escapeHtml(customerName)}`,
-    '',
-    ...itemLines,
-    '',
-    `<b>Итого:</b> ${total.toLocaleString('ru-RU')} ₽`,
-    `<b>Адрес:</b> ${escapeHtml(address)}`,
-    `<b>Комментарий:</b> ${escapeHtml(comment)}`,
-  ].join('\n');
-
-  notificationCooldowns.set(telegramUser.id, now);
-
-  try {
-    const managers = await prisma.user.findMany({
-      where: { role: UserRole.manager },
-      select: { telegramId: true },
-    });
-    const recipientIds = managers.length > 0
-      ? managers.map((manager) => manager.telegramId.toString())
-      : [fallbackManagerTelegramId].filter((telegramId) => /^-?\d+$/.test(telegramId));
-    const deliveryResults = await Promise.all(
-      recipientIds.map(async (chatId) => {
-        const telegramResponse = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: message,
-            parse_mode: 'HTML',
-            disable_web_page_preview: true,
-          }),
-          signal: AbortSignal.timeout(10_000),
-        });
-        const telegramResult = (await telegramResponse.json().catch(() => null)) as { ok?: boolean } | null;
-        return telegramResponse.ok && telegramResult?.ok === true;
-      }),
-    );
-
-    if (deliveryResults.length === 0 || deliveryResults.every((delivered) => !delivered)) {
-      notificationCooldowns.delete(telegramUser.id);
-      response.status(502).json({ error: 'Telegram did not accept the order notification.' });
-      return;
-    }
-
-    response.status(202).json({ ok: true });
-  } catch {
-    notificationCooldowns.delete(telegramUser.id);
-    response.status(502).json({ error: 'Could not reach Telegram.' });
-  }
-});
-
 app.post('/api/orders', async (request, response) => {
   const user = await requireAuthenticatedUser(request, response);
   if (!user) return;
@@ -932,12 +1074,19 @@ app.post('/api/orders', async (request, response) => {
   const deliveryAddress = normalizeAddressText(textValue(delivery.address, 320));
 
   if (requestedItems.length === 0 || requestedItems.length > 15) {
-    response.status(400).json({ error: 'Order items are required.' });
+    response.status(400).json({ error: 'Корзина пуста.' });
     return;
   }
 
   if (!isProbablyDeliveryAddress(deliveryAddress)) {
     response.status(400).json({ error: 'Введите понятный адрес с улицей и номером дома.' });
+    return;
+  }
+
+  const telegramId = Number(user.telegramId);
+  const now = Date.now();
+  if (now - (orderCooldowns.get(telegramId) ?? 0) < 10_000) {
+    response.status(429).json({ error: 'Подождите несколько секунд перед следующим заказом.' });
     return;
   }
 
@@ -952,7 +1101,9 @@ app.post('/api/orders', async (request, response) => {
       const product = await tx.product.findUnique({ where: { id: productId } });
 
       if (!product || !product.isActive || product.quantity < quantity) {
-        throw new Error(`Недостаточно товара: ${productId}`);
+        throw new Error(
+          product ? `«${product.title}»: в наличии только ${product.quantity} шт.` : 'Один из товаров больше не продаётся.',
+        );
       }
 
       const updated = await tx.product.updateMany({
@@ -961,7 +1112,7 @@ app.post('/api/orders', async (request, response) => {
       });
 
       if (updated.count !== 1) {
-        throw new Error(`Остаток изменился: ${product.title}`);
+        throw new Error(`Остаток «${product.title}» только что изменился, попробуйте ещё раз.`);
       }
 
       totalPrice += product.price * quantity;
@@ -984,10 +1135,12 @@ app.post('/api/orders', async (request, response) => {
         deliveryComment: textValue(delivery.comment, 500),
         items: { create: items },
       },
-      include: { items: { include: { product: { select: { brand: true } } } }, user: true },
+      include: orderInclude,
     });
   });
 
+  orderCooldowns.set(telegramId, now);
+  notifyManagersAboutOrder(result).catch((error) => console.error('[bot]', error));
   response.status(201).json(serializeOrder(result));
 });
 
@@ -1024,7 +1177,7 @@ app.post('/api/admin/orders', async (request, response) => {
   const product = await prisma.product.findUnique({ where: { id: productId } });
 
   if (!product) {
-    response.status(404).json({ error: 'Product not found.' });
+    response.status(404).json({ error: 'Товар не найден.' });
     return;
   }
 
@@ -1053,9 +1206,21 @@ app.post('/api/admin/orders', async (request, response) => {
         })
       : admin);
 
-    await tx.product.update({
-      where: { id: product.id },
-      data: { quantity: Math.max(0, product.quantity - quantity) },
+    const updated = await tx.product.updateMany({
+      where: { id: product.id, quantity: { gte: quantity } },
+      data: { quantity: { decrement: quantity } },
+    });
+    if (updated.count !== 1) {
+      throw new Error(`На складе меньше ${quantity} шт. товара «${product.title}».`);
+    }
+    await tx.stockLog.create({
+      data: {
+        productId: product.id,
+        adminId: admin.id,
+        oldQuantity: product.quantity,
+        newQuantity: product.quantity - quantity,
+        reason: 'offline_sale',
+      },
     });
 
     return tx.order.create({
@@ -1065,7 +1230,7 @@ app.post('/api/admin/orders', async (request, response) => {
         status: statusFromClient(request.body?.status),
         deliveryName: customerName || orderUser.firstName || 'Офлайн покупатель',
         deliveryPhone: '',
-        deliveryAddress: textValue(request.body?.address, 320) || 'Офлайн продажа',
+        deliveryAddress: textValue(request.body?.address, 320) || offlineAddress,
         deliveryComment: textValue(request.body?.comment, 500),
         items: {
           create: [{
@@ -1087,22 +1252,94 @@ app.patch('/api/admin/orders/:id/status', async (request, response) => {
   const admin = await requireAdmin(request, response);
   if (!admin) return;
 
-  const order = await prisma.order.update({
-    where: { id: request.params.id },
-    data: { status: statusFromClient(request.body.status) },
-    include: { items: { include: { product: { select: { brand: true } } } }, user: true },
-  });
-
+  const order = await changeOrderStatus(request.params.id, statusFromClient(request.body?.status), admin.id);
   response.json(serializeOrder(order));
 });
 
+// Учёт продаж: сколько и чего продано за период + последние движения склада
+app.get('/api/admin/stats', async (request, response) => {
+  const admin = await requireAdmin(request, response);
+  if (!admin) return;
+
+  const period = textValue(request.query.period, 10);
+  const now = new Date();
+  const since =
+    period === 'day' ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    : period === 'week' ? new Date(now.getTime() - 7 * 86_400_000)
+    : period === 'month' ? new Date(now.getFullYear(), now.getMonth(), 1)
+    : period === 'year' ? new Date(now.getFullYear(), 0, 1)
+    : null;
+
+  const [items, products, stockLogs] = await Promise.all([
+    prisma.orderItem.findMany({
+      where: { order: { status: { not: OrderStatus.CANCELED }, ...(since ? { createdAt: { gte: since } } : {}) } },
+      select: { productId: true, productTitle: true, quantity: true, priceAtPurchase: true, orderId: true },
+    }),
+    prisma.product.findMany({ where: { isArchived: false }, select: { id: true, title: true, brand: true, quantity: true, price: true } }),
+    prisma.stockLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 40,
+      include: { product: { select: { title: true } }, admin: { select: { firstName: true, username: true } } },
+    }),
+  ]);
+
+  const byProduct = new Map<string, { productId: string; title: string; sold: number; revenue: number }>();
+  for (const item of items) {
+    const row = byProduct.get(item.productId) ?? { productId: item.productId, title: item.productTitle, sold: 0, revenue: 0 };
+    row.sold += item.quantity;
+    row.revenue += item.quantity * item.priceAtPurchase;
+    byProduct.set(item.productId, row);
+  }
+
+  response.json({
+    period: since ? period : 'all',
+    revenue: items.reduce((sum, item) => sum + item.quantity * item.priceAtPurchase, 0),
+    unitsSold: items.reduce((sum, item) => sum + item.quantity, 0),
+    ordersCount: new Set(items.map((item) => item.orderId)).size,
+    products: [...byProduct.values()].sort((left, right) => right.sold - left.sold),
+    stock: products
+      .map((product) => ({ ...product, stockValue: product.quantity * product.price }))
+      .sort((left, right) => left.quantity - right.quantity),
+    stockLogs: stockLogs.map((log) => ({
+      id: log.id,
+      productTitle: log.product.title,
+      oldQuantity: log.oldQuantity,
+      newQuantity: log.newQuantity,
+      reason: log.reason,
+      adminName: log.admin.username ? `@${log.admin.username}` : log.admin.firstName,
+      createdAt: log.createdAt.toISOString(),
+    })),
+  });
+});
+
+if (staticDir && fs.existsSync(staticDir)) {
+  app.use(express.static(staticDir, {
+    index: false,
+    setHeaders: (response, filePath) => {
+      if (filePath.includes(`${path.sep}assets${path.sep}`)) response.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    },
+  }));
+  // Telegram любит кэшировать оболочку приложения — index.html всегда отдаём свежим
+  app.get(/^(?!\/api\/).*/, (_request, response) => {
+    response.setHeader('Cache-Control', 'no-store');
+    response.sendFile(path.join(staticDir, 'index.html'));
+  });
+}
+
 app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
   const message = error instanceof Error ? error.message : 'Unknown error';
-  response.status(409).json({ error: message });
+  // Наши ошибки бизнес-логики написаны по-русски — их можно показать пользователю
+  if (/[а-яё]/i.test(message)) {
+    response.status(409).json({ error: message });
+    return;
+  }
+  console.error('[api]', error);
+  response.status(500).json({ error: 'Внутренняя ошибка сервера. Попробуйте ещё раз.' });
 });
 
 const server = app.listen(port, '0.0.0.0', () => {
   console.log(`API server is running on http://localhost:${port}`);
+  if (botToken && process.env.TELEGRAM_POLLING === '1') startTelegramPolling();
 });
 
 const shutdown = () => {

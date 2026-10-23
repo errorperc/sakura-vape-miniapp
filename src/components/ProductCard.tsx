@@ -1,4 +1,4 @@
-import { Check, LoaderCircle } from 'lucide-react';
+import { Check, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { CSSProperties, MouseEvent } from 'react';
 import { publicAsset } from '../lib/assets';
@@ -8,135 +8,97 @@ interface ProductCardProps {
   product: Product;
   cartQuantity: number;
   onAddToCart: (product: Product) => boolean;
+  onOpen: (product: Product) => void;
 }
 
-const getStockLabel = (product: Product) => {
-  if (product.stockCount <= 0) {
-    return 'Нет в наличии';
-  }
-
-  if (product.stockCount <= 5) {
-    return `Осталось ${product.stockCount} шт`;
-  }
-
-  return 'В наличии';
-};
-
-const getStockClassName = (product: Product) => {
-  if (product.stockCount <= 0) {
-    return 'out_of_stock';
-  }
-
-  if (product.stockCount <= 5) {
-    return 'low_stock';
-  }
-
+export const getStockClassName = (stockCount: number) => {
+  if (stockCount <= 0) return 'out_of_stock';
+  if (stockCount <= 5) return 'low_stock';
   return 'in_stock';
 };
 
-export function ProductCard({ product, cartQuantity, onAddToCart }: ProductCardProps) {
-  const [isAdding, setIsAdding] = useState(false);
-  const [added, setAdded] = useState(false);
+export const getStockLabel = (stockCount: number, inCart: number) => {
+  if (stockCount <= 0) return inCart > 0 ? 'Всё в корзине' : 'Нет в наличии';
+  if (stockCount <= 5) return `Осталось ${stockCount} шт`;
+  return '';
+};
+
+// Полёт миниатюры товара к иконке корзины в нижнем меню
+export const useCartFly = () => {
   const [flyStyle, setFlyStyle] = useState<CSSProperties | null>(null);
   const [flyKey, setFlyKey] = useState(0);
+
+  const launch = (event: MouseEvent<HTMLElement>) => {
+    const from = event.currentTarget.getBoundingClientRect();
+    const target = document.querySelector<HTMLElement>('[data-cart-target="true"] .bottom-nav__icon')?.getBoundingClientRect();
+    if (!target) return;
+
+    setFlyStyle({
+      '--fly-start-x': `${from.left + from.width / 2}px`,
+      '--fly-start-y': `${from.top + from.height / 2}px`,
+      '--fly-end-x': `${target.left + target.width / 2}px`,
+      '--fly-end-y': `${target.top + target.height / 2}px`,
+    } as CSSProperties);
+    setFlyKey((current) => current + 1);
+    window.setTimeout(() => setFlyStyle(null), 780);
+  };
+
+  return { flyStyle, flyKey, launch };
+};
+
+export function ProductCard({ product, cartQuantity, onAddToCart, onOpen }: ProductCardProps) {
+  const [added, setAdded] = useState(false);
+  const { flyStyle, flyKey, launch } = useCartFly();
   const availableCount = Math.max(0, product.stockCount - cartQuantity);
-  const soldOutAfterCart = product.stockCount > 0 && availableCount <= 0;
-  const stockClassName = getStockClassName({ ...product, stockCount: availableCount });
   const unavailable = !product.isActive || availableCount <= 0;
-  const disabled = unavailable || isAdding;
-  const stockLabel = soldOutAfterCart ? 'Закончился' : getStockLabel({ ...product, stockCount: availableCount });
-  const buttonLabel = isAdding
-    ? '...'
-    : added
-      ? 'Добавлено'
-      : soldOutAfterCart
-        ? 'Товар закончился'
-        : unavailable
-          ? 'Нет в наличии'
-          : 'В корзину';
+  const stockLabel = getStockLabel(availableCount, cartQuantity);
 
   useEffect(() => {
-    if (!added) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => setAdded(false), 950);
+    if (!added) return;
+    const timer = window.setTimeout(() => setAdded(false), 900);
     return () => window.clearTimeout(timer);
   }, [added]);
 
-  const launchCartFly = (event: MouseEvent<HTMLButtonElement>) => {
-    const buttonRect = event.currentTarget.getBoundingClientRect();
-    const target = document.querySelector<HTMLElement>('[data-cart-target="true"] .bottom-nav__icon');
-    const targetRect = target?.getBoundingClientRect();
-
-    if (!targetRect) {
-      return;
-    }
-
-    setFlyStyle({
-      '--fly-start-x': `${buttonRect.left + buttonRect.width / 2}px`,
-      '--fly-start-y': `${buttonRect.top + buttonRect.height / 2}px`,
-      '--fly-end-x': `${targetRect.left + targetRect.width / 2}px`,
-      '--fly-end-y': `${targetRect.top + targetRect.height / 2}px`,
-    } as CSSProperties);
-    setFlyKey((current) => current + 1);
-    window.setTimeout(() => setFlyStyle(null), 860);
-  };
-
   const handleAdd = (event: MouseEvent<HTMLButtonElement>) => {
-    setIsAdding(true);
-    const success = onAddToCart(product);
-
-    if (success) {
-      launchCartFly(event);
+    event.stopPropagation();
+    if (onAddToCart(product)) {
+      launch(event);
+      setAdded(true);
     }
-
-    window.setTimeout(() => {
-      setIsAdding(false);
-      setAdded(success);
-    }, 220);
   };
 
   return (
-    <article className={`product-card product-card--${stockClassName}`} style={{ '--accent': product.accent } as CSSProperties}>
+    <article
+      className={`product-card product-card--${getStockClassName(availableCount)}`}
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(product)}
+      onKeyDown={(event) => event.key === 'Enter' && onOpen(product)}
+      aria-label={`${product.brand} ${product.name}`}
+    >
       <div className="product-card__media">
-        <span className="product-card__accent" aria-hidden="true" />
-        <span className="product-card__image-shell">
-          <img src={publicAsset(product.image)} alt={product.name} />
-        </span>
+        <img src={publicAsset(product.image)} alt="" loading="lazy" decoding="async" />
+        {stockLabel ? <span className="product-card__stock">{stockLabel}</span> : null}
       </div>
 
       <div className="product-card__body">
-        <div className="product-card__meta">
-          <span>{product.brand}</span>
-          <span>{product.nicotine}</span>
-        </div>
+        <span className="product-card__brand">{product.brand}</span>
         <h3>{product.name}</h3>
-        <p className="product-card__taste">{product.taste}</p>
-        <p className="product-card__description">{product.description}</p>
-      </div>
-
-      <div className="product-card__footer">
-        <div className="product-card__price">
+        <div className="product-card__footer">
           <strong>{product.price.toLocaleString('ru-RU')} ₽</strong>
-          <span className={`stock-pill stock-pill--${stockClassName}`}>{stockLabel}</span>
-        </div>
-        <div className="product-card__actions">
           <button
-            className={`button product-card__cart ${added ? 'product-card__cart--added' : ''}`}
+            className={`product-card__add ${added ? 'product-card__add--added' : ''}`}
             type="button"
-            disabled={disabled}
+            disabled={unavailable}
             onClick={handleAdd}
+            aria-label={`Добавить ${product.name} в корзину`}
           >
-            {isAdding ? (
-              <LoaderCircle className="product-card__cart-loader" size={16} aria-hidden="true" />
-            ) : added ? (
-              <Check size={16} aria-hidden="true" />
-            ) : null}
-            {buttonLabel}
+            {added ? <Check size={17} strokeWidth={3} aria-hidden="true" /> : <Plus size={18} strokeWidth={2.75} aria-hidden="true" />}
+            {cartQuantity > 0 ? <em>{cartQuantity}</em> : null}
           </button>
         </div>
       </div>
+
       {flyStyle ? (
         <span className="product-card__fly" style={flyStyle} key={flyKey} aria-hidden="true">
           <img src={publicAsset(product.image)} alt="" />

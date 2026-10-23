@@ -10,102 +10,67 @@ const categories = [
   { id: 'accessory', label: 'Аксессуары' },
 ];
 
+// Цены и остатки — стартовые, поправьте в админке
 const products = [
   {
-    title: 'Cuvie Plus 1200',
-    brand: 'HQD',
+    title: 'Extra',
+    brand: 'Waka',
     categoryId: 'disposable',
-    description: 'Компактная одноразка с мягкой тягой и ярким тропическим вкусом.',
-    flavor: 'Манго, лед',
-    price: 1290,
-    imageUrl: '/products/hqd-cuvie-plus.png',
-    accent: '#23a6f0',
+    description: 'Одноразовая система с плотным паром и насыщенным вкусом.',
+    flavor: 'Уточните вкус в админке',
+    price: 1500,
+    imageUrl: '/products/generated/waka-extra-live-photo.webp',
+    accent: '#e8336f',
     nicotine: '20 мг',
-    quantity: 18,
+    quantity: 10,
   },
   {
-    title: 'BC5000 Ultra',
-    brand: 'Elf Bar',
+    title: '10000',
+    brand: 'Waka',
     categoryId: 'disposable',
-    description: 'Емкая одноразовая модель для длительного использования.',
-    flavor: 'Клубника, киви',
-    price: 2190,
-    imageUrl: '/products/elfbar-bc5000.png',
-    accent: '#ff5f7e',
+    description: 'До 10 000 затяжек, ровная тяга до последней.',
+    flavor: 'Уточните вкус в админке',
+    price: 1700,
+    imageUrl: '/products/generated/waka-10000-styled.webp',
+    accent: '#e8336f',
     nicotine: '20 мг',
-    quantity: 4,
+    quantity: 10,
   },
   {
-    title: 'Salt Berry Mix',
-    brand: 'Brusko',
-    categoryId: 'liquid',
-    description: 'Солевая жидкость 30 мл с насыщенным ягодным профилем.',
-    flavor: 'Лесные ягоды',
-    price: 850,
-    imageUrl: '/products/brusko-salt-berry.png',
-    accent: '#7d5cff',
-    nicotine: '20 мг',
-    quantity: 32,
-  },
-  {
-    title: 'Salt Frost Mint',
-    brand: 'Brusko',
-    categoryId: 'liquid',
-    description: 'Свежая солевая жидкость для повседневного использования.',
-    flavor: 'Мята, холодок',
-    price: 790,
-    imageUrl: '/products/brusko-mint.png',
-    accent: '#1ec9a5',
-    nicotine: '20 мг',
-    quantity: 21,
-  },
-  {
-    title: 'Argus P1 Kit',
-    brand: 'Voopoo',
-    categoryId: 'pod',
-    description: 'POD-система с быстрой зарядкой и регулируемой тягой.',
-    flavor: 'Устройство',
-    price: 3490,
-    imageUrl: '/products/voopoo-argus-p1.png',
-    accent: '#f6a609',
-    nicotine: '0 мг',
-    quantity: 7,
-  },
-  {
-    title: 'XROS Mini 3',
-    brand: 'Vaporesso',
-    categoryId: 'pod',
-    description: 'Минималистичная POD-система с картриджами XROS.',
-    flavor: 'Устройство',
-    price: 2990,
-    imageUrl: '/products/xros-mini.png',
-    accent: '#4c82ff',
-    nicotine: '0 мг',
-    quantity: 3,
-  },
-  {
-    title: 'Lowit 5500',
-    brand: 'Elf Bar',
+    title: 'Sopro 20000',
+    brand: 'Waka',
     categoryId: 'disposable',
-    description: 'Одноразка с мягким фруктовым вкусом и индикатором заряда.',
-    flavor: 'Арбуз, жвачка',
-    price: 2350,
-    imageUrl: '/products/elfbar-lowit.png',
-    accent: '#ff9d2f',
+    description: 'До 20 000 затяжек для тех, кто не любит часто менять устройство.',
+    flavor: 'Уточните вкус в админке',
+    price: 2200,
+    imageUrl: '/products/generated/waka-sopro-20000-live-photo.webp',
+    accent: '#e8336f',
     nicotine: '20 мг',
-    quantity: 0,
+    quantity: 10,
   },
   {
-    title: 'Картридж XROS 0.8',
-    brand: 'Vaporesso',
-    categoryId: 'cartridge',
-    description: 'Сменный картридж для линейки XROS, упаковка 2 шт.',
-    flavor: 'Сетка 0.8 Ом',
-    price: 690,
-    imageUrl: '/products/cartridge-xros.png',
-    accent: '#35b96f',
-    nicotine: '0 мг',
-    quantity: 16,
+    title: 'Pafos',
+    brand: 'Pafos',
+    categoryId: 'disposable',
+    description: 'Компактная одноразка с мягким вкусом.',
+    flavor: 'Уточните вкус в админке',
+    price: 1300,
+    imageUrl: '/products/generated/pafos-live-photo.webp',
+    accent: '#e8336f',
+    nicotine: '20 мг',
+    quantity: 10,
+  },
+  {
+    title: 'Bad Trip',
+    brand: 'Rick and Morty',
+    categoryId: 'disposable',
+    description: 'Лимитированная серия Rick and Morty.',
+    flavor: 'Уточните вкус в админке',
+    price: 1600,
+    imageUrl: '/products/generated/rick-morty-bad-trip-live-photo.webp',
+    accent: '#e8336f',
+    nicotine: '20 мг',
+    quantity: 10,
   },
 ];
 
@@ -130,19 +95,10 @@ async function main() {
     });
   }
 
+  // Стартовый каталог — только в пустую базу, чтобы не затирать цены и остатки из админки
+  if ((await prisma.product.count()) > 0) return;
+
   for (const product of products) {
-    const existing = await prisma.product.findFirst({
-      where: { title: product.title, brand: product.brand },
-    });
-
-    if (existing) {
-      await prisma.product.update({
-        where: { id: existing.id },
-        data: product,
-      });
-      continue;
-    }
-
     const created = await prisma.product.create({ data: product });
     await prisma.stockLog.create({
       data: {

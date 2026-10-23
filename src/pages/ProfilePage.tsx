@@ -41,15 +41,9 @@ export function ProfilePage({ user, orders, isAdmin }: ProfilePageProps) {
 
   return (
     <main className="page page--profile">
-      <div className="page-header page-header--profile">
-        <div>
-          <span className="eyebrow">Профиль</span>
-          <h1>Ваш аккаунт</h1>
-        </div>
-        <span className="page-header__icon" aria-hidden="true">
-          <UserRound size={20} />
-        </span>
-      </div>
+      <header className="large-title">
+        <h1>Профиль</h1>
+      </header>
 
       <section className="profile-card">
         <div className="profile-card__avatar-wrap">

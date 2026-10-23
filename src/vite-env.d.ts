@@ -38,6 +38,9 @@ interface TelegramWebAppUser {
 }
 
 interface TelegramWebApp {
+  setHeaderColor?: (color: string) => void;
+  setBackgroundColor?: (color: string) => void;
+  setBottomBarColor?: (color: string) => void;
   initData: string;
   initDataUnsafe?: {
     user?: TelegramWebAppUser;

@@ -1,4 +1,4 @@
-import { Loader2 } from 'lucide-react';
+import { Loader2, WifiOff } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { AdminPanel } from './components/AdminPanel';
 import { BottomNav } from './components/BottomNav';
@@ -19,7 +19,6 @@ import {
   createManualOrder as createManualOrderRequest,
   getAdminOrders,
   getMyOrders,
-  notifyManagerAboutOrder,
   updateAdminOrderStatus,
 } from './lib/ordersApi';
 import { getDeliverySettings, saveDeliverySettings } from './lib/settingsApi';
@@ -29,6 +28,7 @@ import { AdminOrdersPage } from './pages/AdminOrdersPage';
 import { CartPage, type ResolvedCartItem } from './pages/CartPage';
 import { DeliveryPage } from './pages/DeliveryPage';
 import { HomePage } from './pages/HomePage';
+import { ProductSheet } from './components/ProductSheet';
 import { ProfilePage } from './pages/ProfilePage';
 import { useCartStore } from './store/cartStore';
 import type {
@@ -125,7 +125,10 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [selectedFilterId, setSelectedFilterId] = useState('all');
   const [ageConfirmed, setAgeConfirmed] = useState(() => readStorage(storageKeys.age, false));
-  const [products, setProducts] = useState<Product[]>(() => normalizeProducts(initialProducts));
+  // Демо-товары только для предпросмотра вне Telegram — реальный покупатель видит лишь каталог с сервера
+  const [products, setProducts] = useState<Product[]>(() => (user.isDemo ? normalizeProducts(initialProducts) : []));
+  const [catalogFailed, setCatalogFailed] = useState(false);
+  const [openedProductId, setOpenedProductId] = useState<string | null>(null);
   const [categories, setCategories] = useState<CatalogCategory[]>(initialCategories);
   const [orders, setOrders] = useState<Order[]>(() => (user.isDemo ? initialOrders : []));
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
@@ -166,13 +169,10 @@ function App() {
     applyCatalog(catalog);
   };
 
-  useEffect(() => {
-    initTelegramApp();
-
+  const loadStore = () => {
     let isMounted = true;
-    const fallbackTimer = window.setTimeout(() => {
-      if (isMounted) setLoading(false);
-    }, 900);
+    setLoading(true);
+    setCatalogFailed(false);
 
     Promise.allSettled([getCatalog(), getDeliverySettings()])
       .then(([catalogResult, deliveryResult]) => {
@@ -180,6 +180,8 @@ function App() {
 
         if (catalogResult.status === 'fulfilled') {
           applyCatalog(catalogResult.value);
+        } else if (!user.isDemo) {
+          setCatalogFailed(true);
         }
 
         if (deliveryResult.status === 'fulfilled') {
@@ -187,14 +189,17 @@ function App() {
         }
       })
       .finally(() => {
-        window.clearTimeout(fallbackTimer);
         if (isMounted) setLoading(false);
       });
 
     return () => {
       isMounted = false;
-      window.clearTimeout(fallbackTimer);
     };
+  };
+
+  useEffect(() => {
+    initTelegramApp();
+    return loadStore();
   }, []);
 
   useEffect(() => {
@@ -300,6 +305,8 @@ function App() {
       .filter((item): item is ResolvedCartItem => item !== null);
   }, [cart, products]);
 
+  const openedProduct = openedProductId ? products.find((product) => product.id === openedProductId) ?? null : null;
+
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
 
   const cartTotal = useMemo(() => {
@@ -395,6 +402,9 @@ function App() {
   };
 
   const deleteProduct = async (productId: string) => {
+    const product = products.find((candidate) => candidate.id === productId);
+    if (!window.confirm(`Удалить «${product?.name ?? 'товар'}»? Если товар уже продавался, он уйдёт в архив.`)) return;
+
     if (user.isDemo) {
       setProducts((current) => current.filter((product) => product.id !== productId));
       removeCartItem(productId);
@@ -549,7 +559,6 @@ function App() {
 
     try {
       const savedOrder = await createCustomerOrder(order);
-      notifyManagerAboutOrder(savedOrder).catch(() => undefined);
 
       setDeliveryDraft(draft);
       setOrders((current) => [savedOrder, ...current]);
@@ -559,8 +568,10 @@ function App() {
       refreshPublicCatalog().catch(() => undefined);
       haptic('success');
       return true;
-    } catch {
-      setCartWarning('Не удалось оформить заказ. Проверьте подключение и попробуйте еще раз.');
+    } catch (error) {
+      const message = error instanceof Error && /[а-яё]/i.test(error.message) ? error.message : '';
+      setCartWarning(message || 'Не удалось оформить заказ. Проверьте подключение и попробуйте еще раз.');
+      refreshPublicCatalog().catch(() => undefined);
       haptic('error');
       return false;
     }
@@ -650,6 +661,19 @@ function App() {
   };
 
   const renderView = () => {
+    if (catalogFailed && !loading) {
+      return (
+        <main className="page page--center">
+          <div className="empty-state">
+            <div className="empty-state__icon"><WifiOff size={30} aria-hidden="true" /></div>
+            <h3>Магазин не загрузился</h3>
+            <p>Проверьте интернет и попробуйте ещё раз.</p>
+            <button className="button button--primary" type="button" onClick={() => loadStore()}>Повторить</button>
+          </div>
+        </main>
+      );
+    }
+
     if (loading) {
       return (
         <main className="page page--center">
@@ -725,6 +749,10 @@ function App() {
         onConfirmAge={confirmAge}
         onFilterChange={setSelectedFilterId}
         onAddToCart={addToCart}
+        onOpenProduct={(product) => {
+          setOpenedProductId(product.id);
+          haptic('light');
+        }}
         getCartQuantity={getCartQuantity}
       />
     );
@@ -733,7 +761,16 @@ function App() {
   return (
     <div className="app-shell">
       {renderView()}
-      <BottomNav activeView={view} isAdmin={isAdmin} cartCount={cartCount} onNavigate={setView} />
+      {openedProduct ? (
+        <ProductSheet
+          product={openedProduct}
+          categories={categories}
+          cartQuantity={getCartQuantity(openedProduct.id)}
+          onAddToCart={addToCart}
+          onClose={() => setOpenedProductId(null)}
+        />
+      ) : null}
+      {ageConfirmed ? <BottomNav activeView={view} isAdmin={isAdmin} cartCount={cartCount} onNavigate={setView} /> : null}
     </div>
   );
 }

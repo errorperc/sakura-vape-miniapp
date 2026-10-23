@@ -53,7 +53,11 @@ services:
       dockerfile: docker/Dockerfile.api
     restart: unless-stopped
     init: true
-    environment: *api-environment
+    environment:
+      <<: *api-environment
+      UPLOADS_DIR: /app/data/uploads
+    volumes:
+      - uploads:/app/data/uploads
     expose:
       - "4000"
     depends_on:
@@ -132,3 +136,4 @@ volumes:
   caddy_data:
   caddy_config:
   postgres_data:
+  uploads:

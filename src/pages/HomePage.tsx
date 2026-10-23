@@ -1,4 +1,5 @@
-import { PackageOpen, ShieldCheck } from 'lucide-react';
+import { PackageOpen, Search, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
 import { AgeGate } from '../components/AgeGate';
 import { CategorySlider } from '../components/CategorySlider';
 import { EmptyState } from '../components/EmptyState';
@@ -15,8 +16,12 @@ interface HomePageProps {
   onConfirmAge: () => void;
   onFilterChange: (filterId: string) => void;
   onAddToCart: (product: Product) => boolean;
+  onOpenProduct: (product: Product) => void;
   getCartQuantity: (productId: string) => number;
 }
+
+const matchesQuery = (product: Product, query: string) =>
+  `${product.brand} ${product.name} ${product.taste}`.toLowerCase().includes(query);
 
 export function HomePage({
   products,
@@ -27,8 +32,11 @@ export function HomePage({
   onConfirmAge,
   onFilterChange,
   onAddToCart,
+  onOpenProduct,
   getCartQuantity,
 }: HomePageProps) {
+  const [query, setQuery] = useState('');
+
   if (!ageConfirmed) {
     return (
       <main className="page page--center">
@@ -37,46 +45,60 @@ export function HomePage({
     );
   }
 
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleProducts = normalizedQuery ? products.filter((product) => matchesQuery(product, normalizedQuery)) : products;
+
   return (
     <main className="page">
-      <div className="catalog-sticky">
-        <div className="store-header">
-          <div className="store-brand">
-            <span className="store-logo" aria-hidden="true">
-              <img src={publicAsset('assets/sakura-logo.png')} alt="" />
-            </span>
-            <div>
-              <h1>Sakura Vape</h1>
-              <p>Каталог 18+</p>
-            </div>
-          </div>
-          <div className="store-header__meta">
-            {isAdmin ? (
-              <span className="admin-badge">
-                <ShieldCheck size={13} strokeWidth={2.5} aria-hidden="true" />
-                <span>Админ</span>
-                <i aria-hidden="true" />
-              </span>
-            ) : null}
-            <span className="catalog-count">{products.length} поз.</span>
+      <div className="store-header">
+        <div className="store-brand">
+          <span className="store-logo" aria-hidden="true">
+            <img src={publicAsset('assets/sakura-logo.webp')} alt="" />
+          </span>
+          <div>
+            <strong>Sakura Vape</strong>
+            <small>Доставка по городу · 18+</small>
           </div>
         </div>
+        {isAdmin ? (
+          <span className="admin-badge">
+            <ShieldCheck size={13} strokeWidth={2.5} aria-hidden="true" />
+            Админ
+          </span>
+        ) : null}
+      </div>
 
+      <header className="large-title">
+        <h1>Каталог</h1>
+      </header>
+
+      <div className="catalog-sticky">
+        <label className="search-field">
+          <Search size={17} aria-hidden="true" />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Поиск по бренду или вкусу"
+            aria-label="Поиск товаров"
+          />
+        </label>
         <CategorySlider filters={filters} activeFilterId={activeFilterId} onChange={onFilterChange} />
       </div>
 
       <div className="section-heading">
-        <h2>Ассортимент</h2>
-        <span>в наличии</span>
+        <h2>{normalizedQuery ? 'Результаты' : 'Все товары'}</h2>
+        <span>{visibleProducts.length} поз.</span>
       </div>
 
-      {products.length > 0 ? (
+      {visibleProducts.length > 0 ? (
         <div className="product-grid">
-          {products.map((product) => (
+          {visibleProducts.map((product) => (
             <ProductCard
               product={product}
               cartQuantity={getCartQuantity(product.id)}
               onAddToCart={onAddToCart}
+              onOpen={onOpenProduct}
               key={product.id}
             />
           ))}
@@ -85,7 +107,7 @@ export function HomePage({
         <EmptyState
           icon={<PackageOpen size={32} aria-hidden="true" />}
           title="Ничего не найдено"
-          text="Попробуйте выбрать другой бренд или категорию в верхнем фильтре."
+          text="Попробуйте другой запрос или категорию."
         />
       )}
     </main>

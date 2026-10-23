@@ -6,7 +6,7 @@ const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '')
 const adminRequest = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const initData = getTelegramWebApp().initData;
 
-  if (!apiBaseUrl || !initData) {
+  if (!initData) {
     throw new Error('Откройте панель внутри Telegram.');
   }
 

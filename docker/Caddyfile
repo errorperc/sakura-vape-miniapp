@@ -20,7 +20,7 @@
 	@productImages path /products/*
 	header @productImages Cache-Control "public, max-age=300"
 
-	@api path /api/*
+	@api path /api/* /uploads/*
 	handle @api {
 		reverse_proxy api:4000
 	}

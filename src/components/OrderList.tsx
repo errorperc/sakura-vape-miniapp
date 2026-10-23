@@ -1,6 +1,7 @@
 import { CalendarDays, CheckCircle2, Clock3, PackageCheck, Truck, XCircle } from 'lucide-react';
 import type { Order, OrderStatus } from '../types';
 import { EmptyState } from './EmptyState';
+import { formatOrderId } from '../lib/ordersApi';
 
 interface OrderListProps {
   orders: Order[];
@@ -59,7 +60,7 @@ export function OrderList({ orders, title = 'История заказов', edi
               ) : null}
               <div className="order-card__top">
                 <div>
-                  <strong>{order.id}</strong>
+                  <strong>Заказ {formatOrderId(order.id)}</strong>
                   <span>
                     <CalendarDays size={15} aria-hidden="true" />
                     {new Date(order.createdAt).toLocaleDateString('ru-RU', {
@@ -75,7 +76,7 @@ export function OrderList({ orders, title = 'История заказов', edi
                     className="select"
                     value={order.status}
                     onChange={(event) => onStatusChange?.(order.id, event.target.value as OrderStatus)}
-                    aria-label={`Статус заказа ${order.id}`}
+                    aria-label={`Статус заказа ${formatOrderId(order.id)}`}
                   >
                     {statuses.map((status) => (
                       <option value={status} key={status}>

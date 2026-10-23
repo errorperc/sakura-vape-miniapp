@@ -124,3 +124,23 @@ export interface TelegramUserProfile {
 }
 
 export interface CheckoutDraft extends DeliveryDetails {}
+
+export type StatsPeriod = 'day' | 'week' | 'month' | 'year' | 'all';
+
+export interface AdminStats {
+  period: StatsPeriod;
+  revenue: number;
+  unitsSold: number;
+  ordersCount: number;
+  products: Array<{ productId: string; title: string; sold: number; revenue: number }>;
+  stock: Array<{ id: string; title: string; brand: string; quantity: number; price: number; stockValue: number }>;
+  stockLogs: Array<{
+    id: string;
+    productTitle: string;
+    oldQuantity: number;
+    newQuantity: number;
+    reason: string;
+    adminName: string;
+    createdAt: string;
+  }>;
+}

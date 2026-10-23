@@ -205,13 +205,10 @@ export function AdminPanel({
 
   return (
     <main className="page admin-page">
-      <div className="page-header admin-page__header">
-        <div>
-          <span className="eyebrow">Управление</span>
-          <h1>Панель магазина</h1>
-        </div>
-        <span className="admin-badge">{isOwner ? 'Главный админ' : 'Администратор'}</span>
-      </div>
+      <header className="large-title">
+        <h1>Магазин</h1>
+        <span className="admin-badge">{isOwner ? 'Владелец' : 'Админ'}</span>
+      </header>
 
       <nav className="admin-tabs" aria-label="Разделы админ-панели">
         {tabs.map((tab) => {

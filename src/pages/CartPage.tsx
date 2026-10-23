@@ -16,6 +16,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { EmptyState } from '../components/EmptyState';
 import { getAddressValidationMessage } from '../lib/addressApi';
 import { publicAsset } from '../lib/assets';
+import { formatOrderId } from '../lib/ordersApi';
 import type { CheckoutDraft, DeliverySettings, Order, Product } from '../types';
 
 export interface ResolvedCartItem {
@@ -81,7 +82,7 @@ export function CartPage({
           <CheckCircle2 size={54} aria-hidden="true" />
           <h1>Заказ оформлен</h1>
           <p>
-            {lastOrder.id} на сумму {lastOrder.total.toLocaleString('ru-RU')} ₽ создан и добавлен в список заказов.
+            Заказ {formatOrderId(lastOrder.id)} на сумму {lastOrder.total.toLocaleString('ru-RU')} ₽ передан менеджеру. Мы напишем вам в Telegram, когда он будет в пути.
           </p>
           <button className="button button--primary" type="button" onClick={onNavigateHome}>
             Вернуться в каталог
@@ -110,16 +111,10 @@ export function CartPage({
 
   return (
     <main className="page cart-page">
-      <div className="page-header">
-        <div>
-          <span className="eyebrow">Корзина</span>
-          <h1>Ваш заказ</h1>
-        </div>
-        <span className="cost-badge">
-          <ReceiptText size={14} aria-hidden="true" />
-          {total.toLocaleString('ru-RU')} ₽
-        </span>
-      </div>
+      <header className="large-title">
+        <h1>Корзина</h1>
+        <span className="pill">{items.reduce((sum, item) => sum + item.quantity, 0)} шт.</span>
+      </header>
 
       <section className="cart-list" aria-label="Позиции корзины">
         {items.map(({ product, quantity }) => (
@@ -129,9 +124,7 @@ export function CartPage({
             </div>
             <div className="cart-item__info">
               <strong>{product.name}</strong>
-              <span>
-                {product.brand} · {product.price.toLocaleString('ru-RU')} ₽
-              </span>
+              <span>{product.brand}</span>
               <em>{(product.price * quantity).toLocaleString('ru-RU')} ₽</em>
             </div>
             <div className="quantity-control" aria-label={`Количество ${product.name}`}>
@@ -168,7 +161,7 @@ export function CartPage({
 
       <form className="checkout-form" onSubmit={submit}>
         <div className="section-heading">
-          <h2>Оформление</h2>
+          <h2>Доставка</h2>
           <span>{items.length} поз.</span>
         </div>
         <div className="checkout-summary">
@@ -214,7 +207,7 @@ export function CartPage({
         </div>
         <button className="button button--primary checkout-submit" type="submit" disabled={submitting}>
           {submitting ? <LoaderCircle className="product-card__cart-loader" size={18} aria-hidden="true" /> : <Send size={18} aria-hidden="true" />}
-          {submitting ? 'Отправляем...' : 'Отправить заказ менеджеру'}
+          {submitting ? 'Отправляем...' : `Оформить заказ · ${total.toLocaleString('ru-RU')} ₽`}
         </button>
       </form>
     </main>
