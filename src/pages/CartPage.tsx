@@ -15,7 +15,7 @@ import {
   Trash2,
   UserRound,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import { EmptyState } from '../components/EmptyState';
 import { getAddressValidationMessage } from '../lib/addressApi';
@@ -57,6 +57,25 @@ export function CartPage({
   const [form, setForm] = useState<CheckoutDraft>(draft);
   const [submitting, setSubmitting] = useState(false);
   const [addressError, setAddressError] = useState('');
+  const [removingIds, setRemovingIds] = useState<string[]>([]);
+  const lastQuantities = useRef(new Map<string, number>());
+
+  // Сначала строка плавно уезжает и схлопывается, потом товар убирается из корзины
+  const removeAnimated = (productId: string) => {
+    if (removingIds.includes(productId)) return;
+    setRemovingIds((current) => [...current, productId]);
+    window.setTimeout(() => {
+      onRemove(productId);
+      setRemovingIds((current) => current.filter((id) => id !== productId));
+    }, 420);
+  };
+
+  // Направление смены числа: больше — цифра въезжает снизу, меньше — сверху
+  const quantityDirection = (productId: string, quantity: number) => {
+    const previous = lastQuantities.current.get(productId) ?? quantity;
+    lastQuantities.current.set(productId, quantity);
+    return quantity < previous ? 'is-down' : '';
+  };
   const method: DeliveryMethod = form.method ?? 'courier';
   const isPickup = method === 'pickup';
 
@@ -130,7 +149,7 @@ export function CartPage({
 
       <section className="cart-list" aria-label="Позиции корзины">
         {items.map(({ product, quantity }) => (
-          <article className="cart-item" key={product.id}>
+          <article className={`cart-item ${removingIds.includes(product.id) ? 'is-removing' : ''}`} key={product.id}>
             <div className="cart-item__media" style={{ '--accent': product.accent } as CSSProperties}>
               <ProductImage src={product.image} width={160} />
             </div>
@@ -143,12 +162,14 @@ export function CartPage({
               <button
                 className="icon-button"
                 type="button"
-                onClick={() => onQuantityChange(product.id, quantity - 1)}
+                onClick={() => (quantity <= 1 ? removeAnimated(product.id) : onQuantityChange(product.id, quantity - 1))}
                 title="Уменьшить"
               >
                 <Minus size={16} aria-hidden="true" />
               </button>
-              <strong>{quantity}</strong>
+              <strong>
+                <span className={quantityDirection(product.id, quantity)} key={quantity}>{quantity}</span>
+              </strong>
               <button
                 className="icon-button"
                 type="button"
@@ -162,7 +183,7 @@ export function CartPage({
             <button
               className="icon-button icon-button--danger"
               type="button"
-              onClick={() => onRemove(product.id)}
+              onClick={() => removeAnimated(product.id)}
               title="Удалить"
             >
               <Trash2 size={16} aria-hidden="true" />

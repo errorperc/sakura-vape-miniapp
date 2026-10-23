@@ -1,5 +1,6 @@
 import { Check, Plus, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { PointerEvent } from 'react';
 import { thumbAsset } from '../lib/assets';
 import { ProductImage } from './ProductImage';
 import type { CatalogCategory, Product } from '../types';
@@ -15,13 +16,61 @@ interface ProductSheetProps {
 
 export function ProductSheet({ product, categories, cartQuantity, onAddToCart, onClose }: ProductSheetProps) {
   const [added, setAdded] = useState(false);
-  const { flyStyle, flyKey, launch } = useCartFly();
+  const { flyStyle, flyKey, launch, onFlyEnd } = useCartFly();
   const availableCount = Math.max(0, product.stockCount - cartQuantity);
   const unavailable = !product.isActive || availableCount <= 0;
   const category = categories.find((candidate) => candidate.id === product.category)?.label;
+  const [closing, setClosing] = useState(false);
+  const sheetRef = useRef<HTMLElement>(null);
+  const drag = useRef<{ startY: number; startTime: number; dy: number } | null>(null);
+
+  // Закрытие с анимацией: шторка уезжает вниз, и только потом убираем её из дерева
+  const requestClose = () => {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(onClose, 380);
+  };
+
+  // Свайп вниз по фото: шторка идёт за пальцем, отпустили дальше порога — закрываем
+  const onDragStart = (event: PointerEvent<HTMLElement>) => {
+    if ((sheetRef.current?.scrollTop ?? 0) > 0) return;
+    drag.current = { startY: event.clientY, startTime: performance.now(), dy: 0 };
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Без захвата указателя свайп всё равно работает, пока палец над фото
+    }
+    sheetRef.current?.classList.add('is-dragging');
+    sheetRef.current?.classList.remove('is-settling');
+  };
+
+  const onDragMove = (event: PointerEvent<HTMLElement>) => {
+    const state = drag.current;
+    const sheet = sheetRef.current;
+    if (!state || !sheet) return;
+    const raw = event.clientY - state.startY;
+    // Вверх тянется туго, вниз — свободно
+    state.dy = raw > 0 ? raw : raw / 6;
+    sheet.style.transform = `translateY(${state.dy}px)`;
+  };
+
+  const onDragEnd = () => {
+    const state = drag.current;
+    const sheet = sheetRef.current;
+    drag.current = null;
+    if (!state || !sheet) return;
+    sheet.classList.remove('is-dragging');
+    const velocity = state.dy / Math.max(1, performance.now() - state.startTime);
+    if (state.dy > 120 || (state.dy > 30 && velocity > 0.6)) {
+      requestClose();
+      return;
+    }
+    sheet.classList.add('is-settling');
+    sheet.style.transform = '';
+  };
 
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && requestClose();
     window.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
     return () => {
@@ -32,7 +81,7 @@ export function ProductSheet({ product, categories, cartQuantity, onAddToCart, o
 
   useEffect(() => {
     if (!added) return;
-    const timer = window.setTimeout(() => setAdded(false), 900);
+    const timer = window.setTimeout(() => setAdded(false), 1100);
     return () => window.clearTimeout(timer);
   }, [added]);
 
@@ -44,13 +93,19 @@ export function ProductSheet({ product, categories, cartQuantity, onAddToCart, o
   ].filter(([, value]) => Boolean(value));
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <section className="sheet" role="dialog" aria-modal="true" aria-label={product.name} onClick={(event) => event.stopPropagation()}>
+    <div className={`sheet-backdrop ${closing ? 'is-closing' : ''}`} onClick={requestClose}>
+      <section className="sheet" ref={sheetRef} role="dialog" aria-modal="true" aria-label={product.name} onClick={(event) => event.stopPropagation()}>
         <span className="sheet__grabber" aria-hidden="true" />
-        <button className="icon-button sheet__close" type="button" onClick={onClose} aria-label="Закрыть">
+        <button className="icon-button sheet__close" type="button" onClick={requestClose} aria-label="Закрыть">
           <X size={18} aria-hidden="true" />
         </button>
-        <div className="sheet__media">
+        <div
+          className="sheet__media"
+          onPointerDown={onDragStart}
+          onPointerMove={onDragMove}
+          onPointerUp={onDragEnd}
+          onPointerCancel={onDragEnd}
+        >
           <ProductImage src={product.image} width={900} alt={product.name} eager />
         </div>
         <div className="sheet__body">
@@ -88,7 +143,7 @@ export function ProductSheet({ product, categories, cartQuantity, onAddToCart, o
       </section>
       {flyStyle ? (
         <span className="product-card__fly" style={flyStyle} key={flyKey} aria-hidden="true">
-          <img src={thumbAsset(product.image, 160)} alt="" />
+          <img src={thumbAsset(product.image, 160)} alt="" onAnimationEnd={onFlyEnd} />
         </span>
       ) : null}
     </div>

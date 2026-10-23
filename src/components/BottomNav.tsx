@@ -1,4 +1,5 @@
 import { Home, PackageSearch, ReceiptText, ShoppingBag, UserRound } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { View } from '../types';
 import { segmentStyle } from '../lib/segment';
 
@@ -16,6 +17,22 @@ const navItems: Array<{ view: View; label: string; icon: typeof Home }> = [
 ];
 
 export function BottomNav({ activeView, isAdmin, cartCount, onNavigate }: BottomNavProps) {
+  const [catching, setCatching] = useState(0);
+
+  useEffect(() => {
+    let timer = 0;
+    const onCatch = () => {
+      setCatching((current) => current + 1);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setCatching(0), 600);
+    };
+    window.addEventListener('cart:catch', onCatch);
+    return () => {
+      window.removeEventListener('cart:catch', onCatch);
+      window.clearTimeout(timer);
+    };
+  }, []);
+
   const items = isAdmin
     ? [
         ...navItems,
@@ -41,7 +58,10 @@ export function BottomNav({ activeView, isAdmin, cartCount, onNavigate }: Bottom
             data-cart-target={item.view === 'cart' ? 'true' : undefined}
           >
             <span className="bottom-nav__active-glow" aria-hidden="true" />
-            <span className="bottom-nav__icon">
+            <span
+              className={`bottom-nav__icon ${item.view === 'cart' && catching ? 'is-catching' : ''}`}
+              key={item.view === 'cart' ? `cart-${catching}` : item.view}
+            >
               <Icon size={20} strokeWidth={isActive ? 2.6 : 2.1} aria-hidden="true" />
               {item.view === 'cart' && cartCount > 0 ? (
                 <span className="bottom-nav__badge" key={cartCount}>{cartCount}</span>

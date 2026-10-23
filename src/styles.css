@@ -118,13 +118,6 @@ p {
   justify-content: center;
 }
 
-@keyframes page-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-
 /* ---------- Типографика ---------- */
 
 .large-title {
@@ -813,37 +806,6 @@ p {
   font-style: normal;
   font-weight: 700;
   line-height: 17px;
-}
-
-.product-card__fly {
-  position: fixed;
-  z-index: 50;
-  top: 0;
-  left: 0;
-  width: 42px;
-  height: 42px;
-  overflow: hidden;
-  border-radius: 50%;
-  box-shadow: 0 8px 24px rgba(255, 55, 95, 0.45);
-  pointer-events: none;
-  animation: fly-to-cart 0.75s cubic-bezier(0.5, 0, 0.75, 0) forwards;
-}
-
-.product-card__fly img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-@keyframes fly-to-cart {
-  from {
-    transform: translate(calc(var(--fly-start-x) - 21px), calc(var(--fly-start-y) - 21px)) scale(1);
-    opacity: 1;
-  }
-  to {
-    transform: translate(calc(var(--fly-end-x) - 21px), calc(var(--fly-end-y) - 21px)) scale(0.3);
-    opacity: 0.6;
-  }
 }
 
 /* ---------- Карточка товара (шторка) ---------- */
@@ -1898,7 +1860,7 @@ option {
 }
 
 .delivery-info__terms summary svg {
-  transition: transform 0.3s var(--spring);
+  transition: transform 0.3s var(--ease-pop);
 }
 
 .delivery-info__terms[open] summary svg {
@@ -1923,15 +1885,21 @@ option {
 }
 
 /* =====================================================================
-   Движение. Пружинистые кривые в духе iOS; при «уменьшить движение» всё отключается.
+   Движение. Плавные кривые как в iOS: быстрое начало и долгое мягкое замедление.
+   Нажатие — короткое вдавливание, отпускание — медленный мягкий возврат.
+   При «уменьшить движение» всё отключается.
    ===================================================================== */
 
 :root {
-  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --ease-out: cubic-bezier(0.2, 0.9, 0.25, 1);
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --ease-pop: cubic-bezier(0.3, 1.25, 0.5, 1);
+  --press-in: 0.12s;
 }
 
-/* Нажатие: короткое сжатие и пружинистый возврат */
+/* ---------- Нажатия ---------- */
+
 .button,
 .icon-button,
 .chip,
@@ -1941,29 +1909,35 @@ option {
 .admin-catalog-switch button,
 .team-role-switch button,
 .bottom-nav__item,
-.image-gallery__item {
+.image-gallery__item,
+.delivery-info__terms summary {
   transition:
-    transform 0.35s var(--spring),
-    background-color 0.25s ease,
-    color 0.25s ease,
-    box-shadow 0.25s ease,
-    opacity 0.2s ease;
+    transform 0.5s var(--ease-out),
+    background-color 0.35s var(--ease-out),
+    color 0.35s var(--ease-out),
+    box-shadow 0.35s var(--ease-out),
+    opacity 0.3s var(--ease-out);
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-.button:active:not(:disabled),
-.chip:active {
-  transform: scale(0.95);
-  transition-duration: 0.08s;
+.button:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: var(--press-in);
 }
 
-.icon-button:active:not(:disabled),
-.product-card__add:active:not(:disabled) {
-  transform: scale(0.86);
-  transition-duration: 0.08s;
+.chip:active,
+.icon-button:active:not(:disabled) {
+  transform: scale(0.92);
+  transition-duration: var(--press-in);
 }
 
 .button--primary {
-  box-shadow: 0 6px 20px rgba(255, 55, 95, 0.28);
+  box-shadow: 0 8px 24px -6px rgba(255, 55, 95, 0.45);
+}
+
+.button--primary:active:not(:disabled) {
+  box-shadow: 0 4px 12px -6px rgba(255, 55, 95, 0.45);
 }
 
 .button--primary:disabled {
@@ -1999,7 +1973,7 @@ option {
   background: #636366;
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18), 0 1px 1px rgba(0, 0, 0, 0.06);
   transform: translateX(calc(100% * var(--seg-index, 0)));
-  transition: transform 0.45s var(--spring);
+  transition: transform 0.5s var(--ease-ios);
 }
 
 .segmented button.is-active,
@@ -2014,11 +1988,11 @@ option {
 .admin-tabs button:not(.is-active):active,
 .admin-catalog-switch button:not(.is-active):active,
 .team-role-switch button:not(.is-active):active {
-  transform: scale(0.94);
-  opacity: 0.7;
+  opacity: 0.55;
+  transition-duration: var(--press-in);
 }
 
-/* ---------- Нижнее меню: переезжающая подсветка ---------- */
+/* ---------- Нижнее меню ---------- */
 
 .bottom-nav::before {
   content: '';
@@ -2031,39 +2005,52 @@ option {
   border-radius: 18px;
   background: var(--fill);
   transform: translateX(calc(100% * var(--seg-index, 0)));
-  transition: transform 0.5s var(--spring);
+  transition: transform 0.55s var(--ease-ios);
 }
 
 .bottom-nav__item--active {
   background: transparent;
 }
 
-.bottom-nav__item--active .bottom-nav__icon {
-  animation: icon-pop 0.45s var(--spring);
+.bottom-nav__icon {
+  transition: transform 0.5s var(--ease-out);
 }
 
 .bottom-nav__item:active .bottom-nav__icon {
-  transform: scale(0.85);
+  transform: scale(0.88);
+  transition-duration: var(--press-in);
 }
 
-.bottom-nav__icon {
-  transition: transform 0.3s var(--spring);
+.bottom-nav__item--active .bottom-nav__icon {
+  animation: icon-settle 0.5s var(--ease-out);
+}
+
+/* Корзина «ловит» прилетевший товар */
+.bottom-nav__icon.is-catching {
+  animation: icon-catch 0.55s var(--ease-out);
 }
 
 .bottom-nav__badge {
-  animation: badge-bump 0.45s var(--spring);
+  animation: badge-in 0.4s var(--ease-pop);
 }
 
-@keyframes icon-pop {
-  0% { transform: scale(0.8); }
-  60% { transform: scale(1.12); }
+@keyframes icon-settle {
+  from {
+    transform: translateY(2px) scale(0.94);
+  }
+}
+
+@keyframes icon-catch {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.18) translateY(-1px); }
   100% { transform: scale(1); }
 }
 
-@keyframes badge-bump {
-  0% { transform: scale(0.4); }
-  60% { transform: scale(1.25); }
-  100% { transform: scale(1); }
+@keyframes badge-in {
+  from {
+    transform: scale(0.5);
+    opacity: 0;
+  }
 }
 
 /* ---------- Чипы категорий ---------- */
@@ -2083,27 +2070,20 @@ option {
   place-items: center;
   margin-left: -4px;
   opacity: 0.8;
+  transition: opacity 0.35s var(--ease-out);
 }
 
 .chip--active {
   border-color: transparent;
   background: var(--accent);
   color: #fff;
-  box-shadow: 0 4px 14px rgba(255, 55, 95, 0.35);
-  animation: chip-select 0.4s var(--spring);
+  box-shadow: 0 6px 16px -6px rgba(255, 55, 95, 0.55);
 }
 
 .chip--active .chip__icon {
   opacity: 1;
 }
 
-@keyframes chip-select {
-  0% { transform: scale(0.92); }
-  60% { transform: scale(1.06); }
-  100% { transform: scale(1); }
-}
-
-/* Края ленты чипов плавно растворяются, когда есть что листать */
 .category-slider--fade-right {
   -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent);
   mask-image: linear-gradient(90deg, #000 85%, transparent);
@@ -2122,68 +2102,121 @@ option {
 .category-slider {
   padding-top: 2px;
   padding-bottom: 6px;
+  scroll-behavior: smooth;
 }
 
-/* ---------- Карточки и фото ---------- */
+/* ---------- Карточки ---------- */
 
 .product-card {
-  animation: card-in 0.5s var(--ease-out) backwards;
-  animation-delay: calc(var(--i, 0) * 45ms);
-  transition: transform 0.35s var(--spring);
+  animation: card-in 0.6s var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 40ms);
+  transition: transform 0.5s var(--ease-out);
 }
 
-.product-card:active {
-  transform: scale(0.97);
-  transition-duration: 0.1s;
+/* Вдавливается вся карточка, но не когда жмут «+» внутри неё */
+.product-card:active:not(:has(.product-card__add:active)) {
+  transform: scale(0.975);
+  transition-duration: 0.15s;
 }
 
 @keyframes card-in {
   from {
     opacity: 0;
-    transform: translateY(14px) scale(0.98);
+    transform: translateY(10px);
   }
 }
 
+/* Кнопка «+»: иконки плавно сменяют друг друга, фон перетекает в зелёный и обратно */
+.product-card__add {
+  overflow: visible;
+}
+
+.product-card__add svg {
+  position: absolute;
+  transition: transform 0.45s var(--ease-out), opacity 0.25s var(--ease-out);
+}
+
+.product-card__add .icon-check {
+  opacity: 0;
+  transform: scale(0.4) rotate(-45deg);
+}
+
+.product-card__add--added .icon-plus {
+  opacity: 0;
+  transform: scale(0.4) rotate(90deg);
+}
+
+.product-card__add--added .icon-check {
+  opacity: 1;
+  transform: none;
+}
+
+.product-card__add:active:not(:disabled) {
+  transform: scale(0.86);
+  transition-duration: var(--press-in);
+}
+
 .product-card__add--added {
-  animation: add-pop 0.45s var(--spring);
+  background: var(--green);
 }
 
 .product-card__add em {
-  animation: badge-bump 0.4s var(--spring);
+  transition: transform 0.4s var(--ease-pop);
+  animation: badge-in 0.4s var(--ease-pop);
 }
 
-@keyframes add-pop {
-  0% { transform: scale(0.7); }
-  55% { transform: scale(1.2); }
-  100% { transform: scale(1); }
+/* ---------- Полёт товара в корзину: по дуге ---------- */
+
+/* Внешний слой летит по горизонтали с замедлением, внутренний — вниз с ускорением: вместе — парабола */
+.product-card__fly {
+  position: fixed;
+  z-index: 60;
+  top: calc(var(--fly-start-y) - 22px);
+  left: calc(var(--fly-start-x) - 22px);
+  pointer-events: none;
+  animation: fly-x 0.7s cubic-bezier(0.25, 0.5, 0.45, 1) forwards;
+  will-change: transform;
 }
 
-/* Пока фото грузится — мягкое мерцание, затем плавное проявление */
-.product-card__media,
-.sheet__media,
-.cart-item__media,
-.admin-product-row,
-.image-gallery__item {
-  --shimmer: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.06) 50%, transparent 70%);
+.product-card__fly img {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 10px 28px rgba(255, 55, 95, 0.5);
+  animation: fly-y 0.7s cubic-bezier(0.5, -0.6, 0.9, 0.5) forwards;
+  will-change: transform, opacity;
 }
+
+@keyframes fly-x {
+  to {
+    transform: translateX(calc(var(--fly-end-x) - var(--fly-start-x)));
+  }
+}
+
+@keyframes fly-y {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(calc(var(--fly-end-y) - var(--fly-start-y))) scale(0.35);
+    opacity: 0;
+  }
+}
+
+/* ---------- Фото ---------- */
 
 .product-card__media,
 .sheet__media,
 .cart-item__media {
-  background: var(--shimmer) #141014;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.05) 50%, transparent 70%) #141014;
   background-size: 200% 100%;
-  animation: shimmer 1.4s linear infinite;
-}
-
-.product-image {
-  opacity: 0;
-  transform: scale(1.02);
-  transition: opacity 0.4s ease, transform 0.6s var(--ease-out);
-}
-
-.product-image.is-loaded {
-  opacity: 1;
-  transform: none;
+  animation: shimmer 1.6s linear infinite;
 }
 
 .product-card__media:has(.is-loaded),
@@ -2192,15 +2225,135 @@ option {
   animation: none;
 }
 
+.product-image {
+  opacity: 0;
+  transform: scale(1.03);
+  transition: opacity 0.6s var(--ease-out), transform 0.9s var(--ease-out);
+}
+
+.product-image.is-loaded {
+  opacity: 1;
+  transform: none;
+}
+
 @keyframes shimmer {
   to {
     background-position: -200% 0;
   }
 }
 
-/* Переключатель «показывать на витрине» — пружина */
+/* ---------- Шторка товара ---------- */
+
+.sheet-backdrop {
+  animation: backdrop-in 0.4s var(--ease-out);
+  transition: background-color 0.35s var(--ease-out);
+}
+
+.sheet {
+  animation: sheet-up 0.55s var(--ease-ios);
+  touch-action: pan-y;
+}
+
+.sheet.is-dragging {
+  transition: none;
+}
+
+.sheet.is-settling {
+  transition: transform 0.45s var(--ease-ios);
+}
+
+.sheet-backdrop.is-closing {
+  background-color: rgba(0, 0, 0, 0);
+  pointer-events: none;
+}
+
+.sheet-backdrop.is-closing .sheet {
+  transform: translateY(105%) !important;
+  transition: transform 0.38s var(--ease-ios);
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    background-color: rgba(0, 0, 0, 0);
+  }
+}
+
+/* ---------- Страницы ---------- */
+
+.page {
+  animation: page-in 0.45s var(--ease-out);
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* ---------- Корзина ---------- */
+
+.cart-item {
+  animation: page-in 0.4s var(--ease-out);
+  transition: opacity 0.3s var(--ease-out), transform 0.35s var(--ease-out), min-height 0.35s var(--ease-ios),
+    padding 0.35s var(--ease-ios);
+}
+
+/* Удаление: строка уезжает влево, затем схлопывается без рывка списка */
+.cart-item.is-removing {
+  min-height: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(-24px);
+  transition: opacity 0.22s var(--ease-out), transform 0.25s var(--ease-out), max-height 0.35s var(--ease-ios) 0.1s,
+    padding 0.35s var(--ease-ios) 0.1s, min-height 0.35s var(--ease-ios) 0.1s;
+}
+
+.cart-item:not(.is-removing) {
+  max-height: 120px;
+}
+
+.quantity-control strong {
+  display: inline-block;
+  overflow: hidden;
+}
+
+.quantity-control strong span {
+  display: inline-block;
+  animation: count-up 0.35s var(--ease-out);
+}
+
+.quantity-control strong span.is-down {
+  animation-name: count-down;
+}
+
+@keyframes count-up {
+  from {
+    transform: translateY(70%);
+    opacity: 0;
+  }
+}
+
+@keyframes count-down {
+  from {
+    transform: translateY(-70%);
+    opacity: 0;
+  }
+}
+
+/* ---------- Прочее ---------- */
+
 .switch-row input::after {
-  transition: transform 0.4s var(--spring), width 0.2s ease;
+  transition: transform 0.45s var(--ease-ios), width 0.25s var(--ease-out);
 }
 
 .switch-row input:active::after {
@@ -2211,16 +2364,6 @@ option {
   transform: translateX(14px);
 }
 
-/* Количество в корзине */
-.quantity-control strong {
-  display: inline-block;
-}
-
-.cart-item {
-  animation: page-in 0.3s var(--ease-out);
-}
-
-/* Галерея фото в админке */
 .image-gallery {
   display: flex;
   gap: 8px;
@@ -2255,26 +2398,11 @@ option {
   transform: scale(0.94);
 }
 
-/* Шторка: фон проявляется, карточка выезжает с пружиной */
-.sheet {
-  animation: sheet-in 0.42s var(--ease-out);
+.delivery-info__terms summary svg {
+  transition: transform 0.45s var(--ease-ios);
 }
 
-@keyframes sheet-in {
-  from {
-    transform: translateY(100%);
-  }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
 
 /* ---------- Уровень клиента ---------- */
 
@@ -2304,7 +2432,7 @@ option {
   border-radius: 14px;
   background: var(--accent-soft);
   color: var(--accent);
-  animation: icon-pop 0.6s var(--spring) 0.15s backwards;
+  animation: icon-pop 0.6s var(--ease-pop) 0.15s backwards;
 }
 
 .level-card--4 .level-card__icon {
@@ -2395,4 +2523,41 @@ option {
 @keyframes field-shake {
   25% { transform: translateX(-4px); }
   75% { transform: translateX(4px); }
+}
+
+/* Фото в шторке — ручка для свайпа вниз */
+.sheet__media {
+  touch-action: none;
+  cursor: grab;
+}
+
+.sheet.is-dragging .sheet__media {
+  cursor: grabbing;
+}
+
+/* «Уменьшить движение» (в Windows — выключенные «Эффекты анимации»): не обрубаем всё,
+   а убираем только крупные перемещения — переходы, нажатия и ползунки остаются */
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .product-card,
+  .cart-item,
+  .level-card {
+    animation-name: fade-only;
+  }
+
+  .product-card__media,
+  .sheet__media,
+  .cart-item__media {
+    animation: none;
+  }
+
+  .product-image {
+    transform: none;
+  }
+
+  @keyframes fade-only {
+    from {
+      opacity: 0;
+    }
+  }
 }

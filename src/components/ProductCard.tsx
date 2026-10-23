@@ -1,6 +1,6 @@
 import { Check, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { CSSProperties, MouseEvent } from 'react';
+import type { AnimationEvent, CSSProperties, MouseEvent } from 'react';
 import { thumbAsset } from '../lib/assets';
 import { ProductImage } from './ProductImage';
 import type { Product } from '../types';
@@ -43,22 +43,27 @@ export const useCartFly = () => {
       '--fly-end-y': `${target.top + target.height / 2}px`,
     } as CSSProperties);
     setFlyKey((current) => current + 1);
-    window.setTimeout(() => setFlyStyle(null), 780);
+    window.setTimeout(() => setFlyStyle(null), 900);
   };
 
-  return { flyStyle, flyKey, launch };
+  // Товар долетел — нижнее меню «ловит» его иконкой корзины
+  const onFlyEnd = (event: AnimationEvent<HTMLElement>) => {
+    if (event.animationName === 'fly-y') window.dispatchEvent(new Event('cart:catch'));
+  };
+
+  return { flyStyle, flyKey, launch, onFlyEnd };
 };
 
 export function ProductCard({ product, cartQuantity, onAddToCart, onOpen, eager = false, index = 0 }: ProductCardProps) {
   const [added, setAdded] = useState(false);
-  const { flyStyle, flyKey, launch } = useCartFly();
+  const { flyStyle, flyKey, launch, onFlyEnd } = useCartFly();
   const availableCount = Math.max(0, product.stockCount - cartQuantity);
   const unavailable = !product.isActive || availableCount <= 0;
   const stockLabel = getStockLabel(availableCount, cartQuantity);
 
   useEffect(() => {
     if (!added) return;
-    const timer = window.setTimeout(() => setAdded(false), 900);
+    const timer = window.setTimeout(() => setAdded(false), 1100);
     return () => window.clearTimeout(timer);
   }, [added]);
 
@@ -92,13 +97,13 @@ export function ProductCard({ product, cartQuantity, onAddToCart, onOpen, eager 
           <strong>{product.price.toLocaleString('ru-RU')} ₽</strong>
           <button
             className={`product-card__add ${added ? 'product-card__add--added' : ''}`}
-            key={added ? 'added' : 'idle'}
             type="button"
             disabled={unavailable}
             onClick={handleAdd}
             aria-label={`Добавить ${product.name} в корзину`}
           >
-            {added ? <Check size={17} strokeWidth={3} aria-hidden="true" /> : <Plus size={18} strokeWidth={2.75} aria-hidden="true" />}
+            <Plus className="icon-plus" size={18} strokeWidth={2.75} aria-hidden="true" />
+            <Check className="icon-check" size={17} strokeWidth={3} aria-hidden="true" />
             {cartQuantity > 0 ? <em key={cartQuantity}>{cartQuantity}</em> : null}
           </button>
         </div>
@@ -106,7 +111,7 @@ export function ProductCard({ product, cartQuantity, onAddToCart, onOpen, eager 
 
       {flyStyle ? (
         <span className="product-card__fly" style={flyStyle} key={flyKey} aria-hidden="true">
-          <img src={thumbAsset(product.image, 160)} alt="" />
+          <img src={thumbAsset(product.image, 160)} alt="" onAnimationEnd={onFlyEnd} />
         </span>
       ) : null}
     </article>
