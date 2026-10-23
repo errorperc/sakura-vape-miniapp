@@ -22,7 +22,7 @@ export const getStockClassName = (stockCount: number) => {
 };
 
 export const getStockLabel = (stockCount: number, inCart: number) => {
-  if (stockCount <= 0) return inCart > 0 ? 'Всё в корзине' : 'Нет в наличии';
+  if (stockCount <= 0) return inCart > 0 ? 'Вы взяли все' : 'Нет в наличии';
   if (stockCount <= 5) return `Осталось ${stockCount} шт`;
   return '';
 };

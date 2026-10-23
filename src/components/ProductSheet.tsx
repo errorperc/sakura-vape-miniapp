@@ -21,6 +21,12 @@ export function ProductSheet({ product, categories, cartQuantity, onAddToCart, o
   const category = categories.find((candidate) => candidate.id === product.category)?.label;
   const [closing, setClosing] = useState(false);
   const sheetRef = useRef<HTMLElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  // Фокус внутрь шторки при открытии — для клавиатуры и экранного диктора
+  useEffect(() => {
+    closeRef.current?.focus({ preventScroll: true });
+  }, []);
   const drag = useRef<{ startY: number; startTime: number; dy: number } | null>(null);
 
   // Закрытие с анимацией: шторка уезжает вниз, и только потом убираем её из дерева
@@ -95,7 +101,7 @@ export function ProductSheet({ product, categories, cartQuantity, onAddToCart, o
     <div className={`sheet-backdrop ${closing ? 'is-closing' : ''}`} onClick={requestClose}>
       <section className="sheet" ref={sheetRef} role="dialog" aria-modal="true" aria-label={product.name} onClick={(event) => event.stopPropagation()}>
         <span className="sheet__grabber" aria-hidden="true" />
-        <button className="icon-button sheet__close" type="button" onClick={requestClose} aria-label="Закрыть">
+        <button className="icon-button sheet__close" type="button" onClick={requestClose} aria-label="Закрыть" ref={closeRef}>
           <X size={18} aria-hidden="true" />
         </button>
         <div

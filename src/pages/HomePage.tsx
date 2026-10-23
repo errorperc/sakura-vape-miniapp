@@ -1,5 +1,5 @@
 import { PackageOpen, Search, ShieldCheck } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AgeGate } from '../components/AgeGate';
 import { CategorySlider } from '../components/CategorySlider';
 import { EmptyState } from '../components/EmptyState';
@@ -36,6 +36,17 @@ export function HomePage({
   getCartQuantity,
 }: HomePageProps) {
   const [query, setQuery] = useState('');
+  // Панель поиска «прилипла» к верху: тогда у неё появляется плотный фон и тень
+  const [stuck, setStuck] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(([entry]) => setStuck(!entry.isIntersecting));
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [ageConfirmed]);
 
   if (!ageConfirmed) {
     return (
@@ -72,7 +83,8 @@ export function HomePage({
         <h1>Каталог</h1>
       </header>
 
-      <div className="catalog-sticky">
+      <div className="sticky-sentinel" ref={sentinelRef} aria-hidden="true" />
+      <div className={`catalog-sticky ${stuck ? 'is-stuck' : ''}`}>
         <label className="search-field">
           <Search size={17} aria-hidden="true" />
           <input

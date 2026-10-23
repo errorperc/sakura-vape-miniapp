@@ -111,7 +111,7 @@ export function CartPage({
       <main className="page page--center">
         <section className="success-state">
           <CheckCircle2 size={54} aria-hidden="true" />
-          <h1>Заказ оформлен</h1>
+          <h1>Заказ принят</h1>
           <p>
             Заказ {formatOrderId(lastOrder.id)} на сумму {lastOrder.total.toLocaleString('ru-RU')} ₽ передан менеджеру. Мы напишем вам в Telegram, когда он будет в пути.
           </p>
@@ -241,10 +241,11 @@ export function CartPage({
                 placeholder="Немига 8, кв. 12"
                 onBlur={() => form.address.trim() && setAddressError(getAddressValidationMessage(form.address))}
                 aria-invalid={Boolean(addressError)}
+                aria-describedby={addressError ? 'address-error' : undefined}
                 autoComplete="street-address"
               />
             </span>
-            {addressError ? <small className="field-error">{addressError}</small> : null}
+            {addressError ? <small className="field-error" id="address-error" role="alert">{addressError}</small> : null}
           </label>
           ) : null}
           <label>
@@ -265,7 +266,7 @@ export function CartPage({
         {warning ? <p className="form-note form-note--warning">{warning}</p> : null}
         <button className="button button--primary checkout-submit" type="submit" disabled={submitting}>
           {submitting ? <LoaderCircle className="product-card__cart-loader" size={18} aria-hidden="true" /> : <Send size={18} aria-hidden="true" />}
-          {submitting ? 'Отправляем...' : `Оформить заказ · ${total.toLocaleString('ru-RU')} ₽`}
+          {submitting ? 'Отправляем…' : `Оформить заказ · ${total.toLocaleString('ru-RU')} ₽`}
         </button>
       </form>
     </main>

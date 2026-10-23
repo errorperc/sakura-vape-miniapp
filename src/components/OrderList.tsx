@@ -10,6 +10,15 @@ interface OrderListProps {
   onStatusChange?: (orderId: string, status: OrderStatus) => void;
 }
 
+// Подписи статусов для людей; сами значения — ключи API, их не меняем
+const statusLabels: Record<OrderStatus, string> = {
+  Новый: 'Новый',
+  'В обработке': 'Собираем',
+  'Передан в доставку': 'В пути',
+  Завершен: 'Выполнен',
+  Отменен: 'Отменён',
+};
+
 const statuses: OrderStatus[] = ['Новый', 'В обработке', 'Передан в доставку', 'Завершен', 'Отменен'];
 
 const getStatusTone = (status: OrderStatus) => {
@@ -80,14 +89,14 @@ export function OrderList({ orders, title = 'История заказов', edi
                   >
                     {statuses.map((status) => (
                       <option value={status} key={status}>
-                        {status}
+                        {statusLabels[status]}
                       </option>
                     ))}
                   </select>
                 ) : (
                   <span className={`status-badge status-badge--${getStatusTone(order.status)}`}>
                     <i aria-hidden="true" />
-                    {order.status}
+                    {statusLabels[order.status]}
                   </span>
                 )}
               </div>

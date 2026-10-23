@@ -327,7 +327,7 @@ function App() {
     const added = addCartItem(product);
 
     if (!added) {
-      setCartWarning('Нельзя добавить больше, чем есть на складе.');
+      setCartWarning('Больше этого товара нет в наличии.');
       haptic('warning');
       return false;
     }
@@ -568,7 +568,7 @@ function App() {
       return true;
     } catch (error) {
       const message = error instanceof Error && /[а-яё]/i.test(error.message) ? error.message : '';
-      setCartWarning(message || 'Не удалось оформить заказ. Проверьте подключение и попробуйте еще раз.');
+      setCartWarning(message || 'Заказ не отправился. Проверьте интернет и попробуйте ещё раз.');
       refreshPublicCatalog().catch(() => undefined);
       haptic('error');
       return false;
