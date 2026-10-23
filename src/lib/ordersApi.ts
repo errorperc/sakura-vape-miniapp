@@ -7,7 +7,7 @@ const authedRequest = async <T>(path: string, init?: RequestInit): Promise<T> =>
 
   const initData = getTelegramWebApp().initData;
   if (!initData) {
-    throw new Error('Open the shop inside Telegram and try again.');
+    throw new Error('Откройте магазин внутри Telegram и попробуйте ещё раз.');
   }
 
   const response = await fetch(`${apiBaseUrl}${path}`, {
@@ -21,7 +21,7 @@ const authedRequest = async <T>(path: string, init?: RequestInit): Promise<T> =>
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? 'Request failed.');
+    throw new Error(body?.error ?? 'Не получилось. Проверьте интернет и попробуйте ещё раз.');
   }
 
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);

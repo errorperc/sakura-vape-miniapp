@@ -10,6 +10,8 @@ const prisma = new PrismaClient();
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
 const botToken = process.env.TELEGRAM_BOT_TOKEN ?? '';
+// В тестах вместо Telegram отвечает локальная заглушка
+const telegramApiUrl = (process.env.TELEGRAM_API_URL ?? 'https://api.telegram.org').replace(/\/+$/, '');
 const ownerTelegramId = process.env.OWNER_TELEGRAM_ID ?? process.env.ADMIN_TELEGRAM_ID ?? '';
 const fallbackManagerTelegramId = process.env.MANAGER_TELEGRAM_ID ?? ownerTelegramId;
 const publicAppUrl = process.env.PUBLIC_APP_URL ?? 'https://api.185-246-217-69.sslip.io/';
@@ -18,10 +20,30 @@ const uploadsDir = path.resolve(process.env.UPLOADS_DIR ?? 'data/uploads');
 // Локальный запуск без Caddy: Express сам отдаёт собранный мини-апп из dist/
 const staticDir = process.env.SERVE_STATIC === '1' ? path.resolve('dist') : '';
 const orderCooldowns = new Map<number, number>();
-const addressSuggestionCache = new Map<string, { expiresAt: number; suggestions: AddressSuggestion[] }>();
+setInterval(() => {
+  const expired = Date.now() - 60_000;
+  for (const [id, time] of orderCooldowns) if (time < expired) orderCooldowns.delete(id);
+}, 10 * 60_000).unref();
+
+// Секрет вебхука выводится из токена бота: Telegram присылает его в заголовке
+// X-Telegram-Bot-Api-Secret-Token (его же передаёт scripts/configure-telegram-bot.mjs).
+// Без проверки любой мог бы прислать «нажатие кнопки менеджера» от чужого имени.
+const webhookSecret = botToken ? createHmac('sha256', botToken).update('sakura-webhook').digest('hex') : '';
+
+// Ошибка, текст которой можно показать пользователю. Всё остальное — 500 без подробностей.
+class UserError extends Error {
+  constructor(message: string, readonly status = 409) {
+    super(message);
+  }
+}
 
 app.set('trust proxy', 1);
-app.use(express.json({ limit: '8mb' }));
+// Большие тела (фото в base64) принимаются только при сохранении товара, остальным хватит 32 КБ
+const smallJson = express.json({ limit: '32kb' });
+const largeJson = express.json({ limit: '6mb' });
+const isProductSave = (request: express.Request) =>
+  (request.method === 'POST' || request.method === 'PATCH') && /^\/api\/admin\/products(\/|$)/.test(request.path);
+app.use((request, response, next) => (isProductSave(request) ? largeJson : smallJson)(request, response, next));
 app.use((request, response, next) => {
   const origin = request.header('origin');
 
@@ -42,18 +64,47 @@ app.use((request, response, next) => {
 
 fs.mkdirSync(uploadsDir, { recursive: true });
 // Имена файлов уникальные (uuid), поэтому их можно кэшировать навсегда
-app.use('/uploads', express.static(uploadsDir, { immutable: true, maxAge: '365d', fallthrough: false }));
+app.use('/uploads', express.static(uploadsDir, { immutable: true, maxAge: '365d' }));
+app.use('/uploads', (_request, response) => {
+  response.status(404).end();
+});
 
 // Миниатюры WebP нужной ширины: /thumbs/480/products/x.webp или /thumbs/480/uploads/y.webp.
 // Нарезаются один раз и кэшируются на диске — в карточку не грузится фото 1254×1254.
-const thumbWidths = new Set([160, 480, 900]);
+const thumbWidths = new Set([160, 320, 480, 900]);
 const publicDir = path.resolve(process.env.PUBLIC_DIR ?? 'public');
 const thumbsDir = path.resolve(process.env.THUMBS_DIR ?? 'data/thumbs');
+
+// Одна генерация на файл, даже если карточки запросили его одновременно
+const thumbJobs = new Map<string, Promise<void>>();
+
+const buildThumb = async (source: string, target: string, width: number) => {
+  const { default: sharp } = await import('sharp');
+  await fs.promises.mkdir(path.dirname(target), { recursive: true });
+  // Пишем во временный файл и переименовываем: недописанная миниатюра не попадёт в кэш
+  const temp = `${target}.${randomUUID()}.tmp`;
+  try {
+    await sharp(source, { limitInputPixels: 40_000_000, failOn: 'error' })
+      .rotate()
+      .resize({ width, withoutEnlargement: true })
+      .webp({ quality: 78, effort: 5 })
+      .toFile(temp);
+    await fs.promises.rename(temp, target);
+  } finally {
+    await fs.promises.rm(temp, { force: true });
+  }
+};
 
 app.get(/^\/thumbs\/(\d+)\/(.+)$/, async (request, response) => {
   const params = request.params as unknown as Record<string, string>;
   const width = Number(params[0]);
-  const relative = path.normalize(decodeURIComponent(params[1])).replace(/^([/\\])+/, '');
+  let relative: string;
+  try {
+    relative = path.normalize(decodeURIComponent(params[1])).replace(/^([/\\])+/, '');
+  } catch {
+    response.status(404).end();
+    return;
+  }
   const fromUploads = relative.startsWith(`uploads${path.sep}`);
   const sourceRoot = fromUploads ? uploadsDir : publicDir;
   const source = path.join(sourceRoot, fromUploads ? relative.slice('uploads'.length + 1) : relative);
@@ -65,16 +116,22 @@ app.get(/^\/thumbs\/(\d+)\/(.+)$/, async (request, response) => {
 
   const target = path.join(thumbsDir, String(width), `${relative}.webp`);
   try {
-    if (!fs.existsSync(target)) {
-      if (!fs.existsSync(source)) {
-        response.status(404).end();
-        return;
-      }
-      const { default: sharp } = await import('sharp');
-      await fs.promises.mkdir(path.dirname(target), { recursive: true });
-      await sharp(source).resize({ width, withoutEnlargement: true }).webp({ quality: 78, effort: 5 }).toFile(target);
+    const sourceStat = await fs.promises.stat(source).catch(() => null);
+    if (!sourceStat) {
+      response.status(404).end();
+      return;
     }
-    response.setHeader('Cache-Control', 'public, max-age=2592000');
+    const targetStat = await fs.promises.stat(target).catch(() => null);
+    // Исходник заменили — миниатюру пересобираем
+    if (!targetStat || targetStat.mtimeMs < sourceStat.mtimeMs) {
+      let job = thumbJobs.get(target);
+      if (!job) {
+        job = buildThumb(source, target, width).finally(() => thumbJobs.delete(target));
+        thumbJobs.set(target, job);
+      }
+      await job;
+    }
+    response.setHeader('Cache-Control', fromUploads ? 'public, max-age=31536000, immutable' : 'public, max-age=2592000');
     response.type('image/webp').sendFile(target);
   } catch (error) {
     console.error('[thumbs]', error);
@@ -87,28 +144,6 @@ interface TelegramInitUser {
   first_name: string;
   last_name?: string;
   username?: string;
-}
-
-interface AddressSuggestion {
-  label: string;
-  value: string;
-  source: string;
-}
-
-interface NominatimResult {
-  display_name?: string;
-  type?: string;
-  address?: {
-    road?: string;
-    pedestrian?: string;
-    footway?: string;
-    house_number?: string;
-    city?: string;
-    town?: string;
-    village?: string;
-    suburb?: string;
-    city_district?: string;
-  };
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -143,7 +178,7 @@ const escapeHtml = (value: string) => {
 const callTelegramApi = async (method: string, body: Record<string, unknown>) => {
   if (!botToken) return false;
 
-  const telegramResponse = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
+  const telegramResponse = await fetch(`${telegramApiUrl}/bot${botToken}/${method}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -171,7 +206,7 @@ const sendShopLaunchMessage = async (chatId: number | string) => {
   });
 };
 
-const validateTelegramInitData = (initData: unknown): TelegramInitUser | null => {
+const validateTelegramInitData = (initData: unknown, maxAgeSeconds = 86_400): TelegramInitUser | null => {
   if (!botToken || typeof initData !== 'string' || initData.length === 0 || initData.length > 12_000) {
     return null;
   }
@@ -185,7 +220,7 @@ const validateTelegramInitData = (initData: unknown): TelegramInitUser | null =>
   }
 
   const now = Math.floor(Date.now() / 1000);
-  if (authDate > now + 300 || now - authDate > 86_400) {
+  if (authDate > now + 300 || now - authDate > maxAgeSeconds) {
     return null;
   }
 
@@ -236,6 +271,12 @@ app.get('/api/health', async (_request, response) => {
 });
 
 app.post('/api/telegram/webhook', async (request, response) => {
+  const received = Buffer.from(request.header('x-telegram-bot-api-secret-token') ?? '');
+  const expected = Buffer.from(webhookSecret);
+  if (!webhookSecret || received.length !== expected.length || !timingSafeEqual(received, expected)) {
+    response.sendStatus(401);
+    return;
+  }
   await handleTelegramUpdate(request.body).catch((error) => console.error('[bot]', error));
   response.json({ ok: true });
 });
@@ -260,19 +301,32 @@ const upsertAuthenticatedUser = async (telegramUser: TelegramInitUser) => {
   });
 };
 
-const requireAuthenticatedUser = async (request: express.Request, response: express.Response) => {
-  const telegramUser = validateTelegramInitData(request.header('x-telegram-init-data') ?? request.body?.initData);
+// Подпись Telegram действует сутки для покупателя, но для админских действий — 6 часов:
+// утёкший заголовок не даст долго хозяйничать в магазине
+const staffInitDataMaxAge = 6 * 3600;
+
+const requireAuthenticatedUser = async (request: express.Request, response: express.Response, maxAgeSeconds?: number) => {
+  const telegramUser = validateTelegramInitData(request.header('x-telegram-init-data') ?? request.body?.initData, maxAgeSeconds);
 
   if (!telegramUser) {
-    response.status(401).json({ error: 'Откройте магазин внутри Telegram и попробуйте ещё раз.' });
+    response.status(401).json({
+      error: maxAgeSeconds
+        ? 'Сессия устарела — закройте магазин и откройте заново.'
+        : 'Откройте магазин внутри Telegram и попробуйте ещё раз.',
+    });
     return null;
   }
 
-  return upsertAuthenticatedUser(telegramUser);
+  const user = await upsertAuthenticatedUser(telegramUser);
+  // Владелец задаётся в .env. Если его сменили, прежний владелец становится админом
+  if (user.role === UserRole.owner && user.telegramId.toString() !== ownerTelegramId) {
+    return prisma.user.update({ where: { id: user.id }, data: { role: UserRole.admin } });
+  }
+  return user;
 };
 
 const requireAdmin = async (request: express.Request, response: express.Response) => {
-  const admin = await requireAuthenticatedUser(request, response);
+  const admin = await requireAuthenticatedUser(request, response, staffInitDataMaxAge);
   if (!admin) return null;
 
   if (admin.role !== UserRole.admin && admin.role !== UserRole.owner) {
@@ -284,7 +338,7 @@ const requireAdmin = async (request: express.Request, response: express.Response
 };
 
 const requireOwner = async (request: express.Request, response: express.Response) => {
-  const owner = await requireAuthenticatedUser(request, response);
+  const owner = await requireAuthenticatedUser(request, response, staffInitDataMaxAge);
   if (!owner) return null;
 
   if (owner.role !== UserRole.owner || owner.telegramId.toString() !== ownerTelegramId) {
@@ -338,24 +392,6 @@ const normalizeDeliverySettings = (body: unknown) => {
   };
 };
 
-const toAddressSuggestion = (result: NominatimResult): AddressSuggestion | null => {
-  const address = result.address ?? {};
-  const street = address.road ?? address.pedestrian ?? address.footway ?? '';
-  const house = address.house_number ?? '';
-  const city = address.city ?? address.town ?? address.village ?? 'Минск';
-  const area = address.suburb ?? address.city_district ?? '';
-  const parts = [city, street, house].filter(Boolean);
-  const value = parts.length >= 2 ? parts.join(', ') : textValue(result.display_name, 180);
-
-  if (!value || value.length < 6) return null;
-
-  return {
-    label: [street && house ? `${street}, ${house}` : street || value, area || city].filter(Boolean).join(' · '),
-    value,
-    source: result.type ?? 'address',
-  };
-};
-
 const statusToClient: Record<OrderStatus, string> = {
   NEW: 'Новый',
   PROCESSING: 'В обработке',
@@ -365,13 +401,16 @@ const statusToClient: Record<OrderStatus, string> = {
 };
 
 const statusFromClient = (status: unknown): OrderStatus => {
+  if (status === 'Новый' || status === 'NEW') return OrderStatus.NEW;
   if (status === 'В обработке' || status === 'PROCESSING') return OrderStatus.PROCESSING;
   if (status === 'Передан в доставку' || status === 'OUT_FOR_DELIVERY') return OrderStatus.OUT_FOR_DELIVERY;
   if (status === 'Завершен' || status === 'COMPLETED') return OrderStatus.COMPLETED;
   if (status === 'Отменен' || status === 'CANCELED') return OrderStatus.CANCELED;
 
-  return OrderStatus.NEW;
+  throw new UserError('Неизвестный статус заказа.', 400);
 };
+
+const isOrderStatus = (value: string): value is OrderStatus => (Object.values(OrderStatus) as string[]).includes(value);
 
 const getStockStatus = (quantity: number) => {
   if (quantity <= 0) return 'out_of_stock';
@@ -495,16 +534,34 @@ const productInput = (body: unknown) => {
 
 // ---------- Фото товаров ----------
 
-const imageExtensions: Record<string, string> = { webp: 'webp', png: 'png', jpeg: 'jpg', jpg: 'jpg' };
+// Разрешены только свои файлы: загруженные в админке и фото из репозитория
+const allowedImagePath = /^\/?(uploads|products)\/[\w./-]+\.(webp|png|jpe?g)$/i;
 
-// Админка присылает фото как data URL (уже сжатое в WebP). Храним его файлом,
-// а в базе — короткую ссылку: так каталог грузится быстро и фото кэшируются.
+// Админка присылает фото как data URL. Проверяем, что это действительно картинка нужного формата,
+// перекодируем в WebP и храним файлом, а в базе — короткую ссылку.
 const storeUploadedImage = async (imageUrl: string) => {
-  const match = imageUrl.match(/^data:image\/(webp|png|jpe?g);base64,([a-z0-9+/=]+)$/i);
-  if (!match) return imageUrl;
+  const match = imageUrl.match(/^data:image\/[a-z+]+;base64,([a-z0-9+/=]+)$/i);
+  if (!match) {
+    if (allowedImagePath.test(imageUrl) && !imageUrl.includes('..')) return imageUrl;
+    throw new UserError('Фото можно загрузить только с устройства.', 400);
+  }
 
-  const fileName = `${randomUUID()}.${imageExtensions[match[1].toLowerCase()]}`;
-  await fs.promises.writeFile(path.join(uploadsDir, fileName), Buffer.from(match[2], 'base64'));
+  const buffer = Buffer.from(match[1], 'base64');
+  if (buffer.length > 4_000_000) throw new UserError('Фото слишком большое — до 4 МБ.', 400);
+
+  const { default: sharp } = await import('sharp');
+  const options = { limitInputPixels: 40_000_000, failOn: 'error' as const };
+  const meta = await sharp(buffer, options).metadata().catch(() => null);
+  if (!meta || !['webp', 'png', 'jpeg'].includes(meta.format ?? '')) {
+    throw new UserError('Поддерживаются фото в формате JPG, PNG или WebP.', 400);
+  }
+
+  const fileName = `${randomUUID()}.webp`;
+  await sharp(buffer, options)
+    .rotate()
+    .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: 84 })
+    .toFile(path.join(uploadsDir, fileName));
   return `/uploads/${fileName}`;
 };
 
@@ -519,6 +576,8 @@ type FullOrder = NonNullable<Awaited<ReturnType<typeof findFullOrder>>>;
 const formatRub = (value: number) => `${value.toLocaleString('ru-RU')} ₽`;
 const shortOrderId = (id: string) => id.slice(0, 8).toUpperCase();
 const offlineAddress = 'Офлайн продажа';
+const maxUnitsPerProduct = 20;
+const maxOpenOrdersPerUser = 3;
 // Адрес заказа при самовывозе — так способ получения виден менеджеру и в истории
 const pickupAddress = 'Самовывоз';
 
@@ -614,41 +673,45 @@ const notifyCustomerAboutStatus = async (order: FullOrder) => {
 const changeOrderStatus = async (orderId: string, nextStatus: OrderStatus, actorId: string) => {
   const changed = await prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
-    if (!order) throw new Error('Заказ не найден.');
+    if (!order) throw new UserError('Заказ не найден.', 404);
     if (order.status === nextStatus) return false;
+
+    // Статус меняем только если он всё ещё тот, что мы прочитали. Двойное нажатие кнопки
+    // или менеджер и админ одновременно — второй получит ошибку, а не вернёт товар дважды.
+    const switched = await tx.order.updateMany({ where: { id: orderId, status: order.status }, data: { status: nextStatus } });
+    if (switched.count !== 1) throw new UserError('Статус заказа уже изменили. Обновите список.');
 
     const cancelling = nextStatus === OrderStatus.CANCELED;
     const restoring = order.status === OrderStatus.CANCELED;
+    if (!cancelling && !restoring) return true;
 
-    if (cancelling || restoring) {
-      for (const item of order.items) {
-        const product = await tx.product.findUnique({ where: { id: item.productId } });
-        if (!product) continue;
-
-        if (restoring && product.quantity < item.quantity) {
-          throw new Error(`Недостаточно товара «${product.title}», чтобы вернуть заказ в работу.`);
-        }
-
-        const newQuantity = product.quantity + (cancelling ? item.quantity : -item.quantity);
-        await tx.product.update({ where: { id: product.id }, data: { quantity: newQuantity } });
-        await tx.stockLog.create({
-          data: {
-            productId: product.id,
-            adminId: actorId,
-            oldQuantity: product.quantity,
-            newQuantity,
-            reason: cancelling ? 'order_cancel' : 'order_restore',
-          },
-        });
+    for (const item of order.items) {
+      // Относительные изменения склада: параллельные заказы не затираются
+      const updated = await tx.product.updateMany({
+        where: { id: item.productId, ...(restoring ? { quantity: { gte: item.quantity } } : {}) },
+        data: { quantity: cancelling ? { increment: item.quantity } : { decrement: item.quantity } },
+      });
+      if (updated.count !== 1) {
+        if (cancelling) continue; // товар удалили из базы — возвращать некуда
+        throw new UserError(`Недостаточно товара «${item.productTitle}», чтобы вернуть заказ в работу.`);
       }
+      const product = await tx.product.findUniqueOrThrow({ where: { id: item.productId }, select: { quantity: true } });
+      const delta = cancelling ? item.quantity : -item.quantity;
+      await tx.stockLog.create({
+        data: {
+          productId: item.productId,
+          adminId: actorId,
+          oldQuantity: product.quantity - delta,
+          newQuantity: product.quantity,
+          reason: cancelling ? 'order_cancel' : 'order_restore',
+        },
+      });
     }
-
-    await tx.order.update({ where: { id: orderId }, data: { status: nextStatus } });
     return true;
   });
 
   const order = await findFullOrder(orderId);
-  if (!order) throw new Error('Заказ не найден.');
+  if (!order) throw new UserError('Заказ не найден.', 404);
   if (changed) notifyCustomerAboutStatus(order).catch(() => undefined);
   return order;
 };
@@ -658,7 +721,7 @@ const changeOrderStatus = async (orderId: string, nextStatus: OrderStatus, actor
 const sendTelegramIdMessage = (chatId: number | string, userId: unknown) =>
   callTelegramApi('sendMessage', {
     chat_id: chatId,
-    text: `Ваш Telegram ID: <code>${Number(userId) || '—'}</code>\nID этого чата: <code>${chatId}</code>`,
+    text: `Ваш Telegram ID: <code>${Number(userId) || '—'}</code>\nID этого чата: <code>${escapeHtml(String(chatId))}</code>`,
     parse_mode: 'HTML',
   });
 
@@ -668,7 +731,7 @@ const handleStatusCallback = async (query: Record<string, unknown>) => {
   const [, orderId, status] = data.split(':');
   const answer = (text: string) => callTelegramApi('answerCallbackQuery', { callback_query_id: query.id, text });
 
-  if (!orderId || !(status in OrderStatus) || typeof from.id !== 'number') {
+  if (!orderId || !isOrderStatus(status) || typeof from.id !== 'number') {
     await answer('Неизвестная команда');
     return;
   }
@@ -686,7 +749,7 @@ const handleStatusCallback = async (query: Record<string, unknown>) => {
   }
 
   try {
-    const order = await changeOrderStatus(orderId, status as OrderStatus, actor.id);
+    const order = await changeOrderStatus(orderId, status, actor.id);
     const message = isRecord(query.message) ? query.message : null;
     const chat = message && isRecord(message.chat) ? message.chat : null;
     if (chat && message) {
@@ -701,7 +764,7 @@ const handleStatusCallback = async (query: Record<string, unknown>) => {
     }
     await answer(`Статус: ${statusToClient[order.status]}`);
   } catch (error) {
-    await answer(error instanceof Error ? error.message.slice(0, 190) : 'Ошибка');
+    await answer(error instanceof UserError ? error.message.slice(0, 190) : 'Не получилось, попробуйте ещё раз');
   }
 };
 
@@ -729,13 +792,13 @@ const handleTelegramUpdate = async (body: unknown) => {
 
 // Для локального запуска без постоянного адреса: бот сам забирает обновления (long polling)
 const startTelegramPolling = async () => {
-  await callTelegramApi('deleteWebhook', { drop_pending_updates: false });
+  await callTelegramApi('deleteWebhook', { drop_pending_updates: false }).catch(() => false);
   let offset = 0;
   console.log('[bot] Получаю обновления через long polling');
 
   for (;;) {
     try {
-      const telegramResponse = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates`, {
+      const telegramResponse = await fetch(`${telegramApiUrl}/bot${botToken}/getUpdates`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ offset, timeout: 30, allowed_updates: ['message', 'callback_query'] }),
@@ -850,61 +913,8 @@ app.put('/api/admin/settings/delivery', async (request, response) => {
   response.json(normalizeDeliverySettings(setting.value));
 });
 
-app.get('/api/address/suggest', async (request, response) => {
-  const query = normalizeAddressText(textValue(request.query.q, 120));
-
-  if (query.length < 3 || !/[a-zа-яё]{2,}/i.test(query)) {
-    response.json([]);
-    return;
-  }
-
-  const cacheKey = query.toLowerCase();
-  const cached = addressSuggestionCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    response.json(cached.suggestions);
-    return;
-  }
-
-  try {
-    const url = new URL('https://nominatim.openstreetmap.org/search');
-    url.searchParams.set('format', 'jsonv2');
-    url.searchParams.set('limit', '6');
-    url.searchParams.set('addressdetails', '1');
-    url.searchParams.set('countrycodes', 'by');
-    url.searchParams.set('accept-language', 'ru');
-    url.searchParams.set('q', query.includes('Минск') ? query : `Минск ${query}`);
-
-    const geoResponse = await fetch(url, {
-      headers: {
-        accept: 'application/json',
-        'user-agent': 'Sakura Vape MiniApp address autocomplete',
-      },
-      signal: AbortSignal.timeout(4500),
-    });
-
-    if (!geoResponse.ok) {
-      response.json([]);
-      return;
-    }
-
-    const results = (await geoResponse.json()) as NominatimResult[];
-    const suggestions = results
-      .map(toAddressSuggestion)
-      .filter((suggestion): suggestion is AddressSuggestion => suggestion !== null)
-      .filter((suggestion, index, list) => list.findIndex((item) => item.value === suggestion.value) === index)
-      .slice(0, 5);
-
-    addressSuggestionCache.set(cacheKey, {
-      suggestions,
-      expiresAt: Date.now() + 1000 * 60 * 60,
-    });
-    response.json(suggestions);
-  } catch {
-    response.json([]);
-  }
-});
-
 app.get('/api/catalog', async (_request, response) => {
+  response.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=600');
   const [categories, products] = await Promise.all([
     prisma.category.findMany({ orderBy: { createdAt: 'asc' } }),
     prisma.product.findMany({
@@ -1055,23 +1065,35 @@ app.patch('/api/admin/products/:id', async (request, response) => {
     return;
   }
 
-  input.imageUrl = await storeUploadedImage(input.imageUrl);
-  const product = await prisma.product.update({
-    where: { id: current.id },
-    data: input,
-  });
-
-  if (input.quantity !== current.quantity) {
-    await prisma.stockLog.create({
-      data: {
-        productId: current.id,
-        adminId: admin.id,
-        oldQuantity: current.quantity,
-        newQuantity: input.quantity,
-        reason: request.body.stockReason ?? 'admin_update',
-      },
-    });
+  // Форма присылает остаток, который видел админ при открытии (baseStockCount).
+  // Если с тех пор купили — не откатываем продажу: либо сохраняем текущий остаток,
+  // либо просим проверить, если админ сам менял число.
+  const baseStock = request.body?.baseStockCount;
+  const stockChangedMeanwhile = baseStock !== undefined && Number(baseStock) !== current.quantity;
+  if (stockChangedMeanwhile) {
+    if (input.quantity !== Number(baseStock)) {
+      throw new UserError(`Пока вы редактировали, остаток изменился: сейчас ${current.quantity} шт. Проверьте и сохраните ещё раз.`);
+    }
+    input.quantity = current.quantity;
   }
+
+  input.imageUrl = await storeUploadedImage(input.imageUrl);
+  const stockReasons = ['admin_update', 'restock', 'writeoff', 'inventory'];
+  const reason = stockReasons.includes(request.body?.stockReason) ? request.body.stockReason : 'admin_update';
+
+  const product = await prisma.$transaction(async (tx) => {
+    // Сохраняем, только если остаток в базе всё ещё тот, что мы прочитали
+    const saved = await tx.product.updateMany({ where: { id: current.id, quantity: current.quantity }, data: input });
+    if (saved.count !== 1) {
+      throw new UserError('Остаток только что изменился из-за заказа. Откройте товар заново и сохраните.');
+    }
+    if (input.quantity !== current.quantity) {
+      await tx.stockLog.create({
+        data: { productId: current.id, adminId: admin.id, oldQuantity: current.quantity, newQuantity: input.quantity, reason },
+      });
+    }
+    return tx.product.findUniqueOrThrow({ where: { id: current.id } });
+  });
 
   response.json(serializeProduct(product));
 });
@@ -1115,25 +1137,42 @@ app.post('/api/orders', async (request, response) => {
     return;
   }
 
+  // Одинаковые позиции складываем, на одну позицию — не больше 20 шт.
+  const merged = new Map<string, number>();
+  for (const item of requestedItems) {
+    if (!isRecord(item)) {
+      response.status(400).json({ error: 'Корзина повреждена — обновите страницу.' });
+      return;
+    }
+    const productId = textValue(item.productId, 80);
+    const quantity = Math.max(1, Math.floor(numberValue(item.quantity)) || 1);
+    merged.set(productId, Math.min(maxUnitsPerProduct, (merged.get(productId) ?? 0) + quantity));
+  }
+
+  const openOrders = await prisma.order.count({ where: { userId: user.id, status: OrderStatus.NEW } });
+  if (openOrders >= maxOpenOrdersPerUser) {
+    response.status(429).json({ error: 'У вас уже есть заказы в ожидании. Дождитесь ответа менеджера.' });
+    return;
+  }
+
+  // Кулдаун ставим до работы, иначе два одновременных запроса оба проходят проверку
   const telegramId = Number(user.telegramId);
   const now = Date.now();
   if (now - (orderCooldowns.get(telegramId) ?? 0) < 10_000) {
     response.status(429).json({ error: 'Подождите несколько секунд перед следующим заказом.' });
     return;
   }
+  orderCooldowns.set(telegramId, now);
 
   const result = await prisma.$transaction(async (tx) => {
     const items = [];
     let totalPrice = 0;
 
-    for (const item of requestedItems) {
-      if (!isRecord(item)) throw new Error('Order item is invalid.');
-      const productId = textValue(item.productId, 80);
-      const quantity = Math.max(1, Math.min(99, Math.floor(numberValue(item.quantity))));
+    for (const [productId, quantity] of merged) {
       const product = await tx.product.findUnique({ where: { id: productId } });
 
-      if (!product || !product.isActive || product.quantity < quantity) {
-        throw new Error(
+      if (!product || !product.isActive || product.isArchived || product.quantity < quantity) {
+        throw new UserError(
           product ? `«${product.title}»: в наличии только ${product.quantity} шт.` : 'Один из товаров больше не продаётся.',
         );
       }
@@ -1144,8 +1183,17 @@ app.post('/api/orders', async (request, response) => {
       });
 
       if (updated.count !== 1) {
-        throw new Error(`Остаток «${product.title}» только что изменился, попробуйте ещё раз.`);
+        throw new UserError(`Остаток «${product.title}» только что изменился, попробуйте ещё раз.`);
       }
+      await tx.stockLog.create({
+        data: {
+          productId: product.id,
+          adminId: user.id,
+          oldQuantity: product.quantity,
+          newQuantity: product.quantity - quantity,
+          reason: 'order',
+        },
+      });
 
       totalPrice += product.price * quantity;
       items.push({
@@ -1169,9 +1217,11 @@ app.post('/api/orders', async (request, response) => {
       },
       include: orderInclude,
     });
+  }).catch((error) => {
+    orderCooldowns.delete(telegramId);
+    throw error;
   });
 
-  orderCooldowns.set(telegramId, now);
   notifyManagersAboutOrder(result).catch((error) => console.error('[bot]', error));
   response.status(201).json(serializeOrder(result));
 });
@@ -1214,7 +1264,14 @@ app.post('/api/admin/orders', async (request, response) => {
   }
 
   const quantity = Math.max(1, Math.min(99, Math.floor(numberValue(request.body?.quantity) || 1)));
-  const price = Math.max(0, Math.round(numberValue(request.body?.price) || product.price));
+  // Цена 0 — подарок, это допустимо; не передали цену — берём из каталога
+  const rawPrice = request.body?.price;
+  const price = rawPrice === undefined || rawPrice === '' ? product.price : Math.max(0, Math.round(numberValue(rawPrice)));
+  const saleStatus = request.body?.status === undefined ? OrderStatus.COMPLETED : statusFromClient(request.body.status);
+  if (saleStatus === OrderStatus.CANCELED) {
+    response.status(400).json({ error: 'Нельзя провести продажу сразу отменённой.' });
+    return;
+  }
   const totalPrice = price * quantity;
   const customerTelegramId = textValue(request.body?.customerTelegramId, 30);
   const customerName = textValue(request.body?.customerName, 160);
@@ -1243,14 +1300,15 @@ app.post('/api/admin/orders', async (request, response) => {
       data: { quantity: { decrement: quantity } },
     });
     if (updated.count !== 1) {
-      throw new Error(`На складе меньше ${quantity} шт. товара «${product.title}».`);
+      throw new UserError(`На складе меньше ${quantity} шт. товара «${product.title}».`);
     }
+    const after = await tx.product.findUniqueOrThrow({ where: { id: product.id }, select: { quantity: true } });
     await tx.stockLog.create({
       data: {
         productId: product.id,
         adminId: admin.id,
-        oldQuantity: product.quantity,
-        newQuantity: product.quantity - quantity,
+        oldQuantity: after.quantity + quantity,
+        newQuantity: after.quantity,
         reason: 'offline_sale',
       },
     });
@@ -1259,7 +1317,7 @@ app.post('/api/admin/orders', async (request, response) => {
       data: {
         userId: orderUser.id,
         totalPrice,
-        status: statusFromClient(request.body?.status),
+        status: saleStatus,
         deliveryName: customerName || orderUser.firstName || 'Офлайн покупатель',
         deliveryPhone: '',
         deliveryAddress: textValue(request.body?.address, 320) || offlineAddress,
@@ -1288,19 +1346,29 @@ app.patch('/api/admin/orders/:id/status', async (request, response) => {
   response.json(serializeOrder(order));
 });
 
+// Магазин в Минске, а сервер в Docker живёт по UTC: начало дня/месяца/года считаем по Минску (UTC+3, без перехода на летнее)
+const shopUtcOffsetHours = 3;
+const periodStart = (period: string) => {
+  const now = new Date();
+  if (period === 'week') return new Date(now.getTime() - 7 * 86_400_000);
+  const local = new Date(now.getTime() + shopUtcOffsetHours * 3_600_000);
+  const year = local.getUTCFullYear();
+  const month = local.getUTCMonth();
+  const startLocal =
+    period === 'day' ? Date.UTC(year, month, local.getUTCDate())
+    : period === 'month' ? Date.UTC(year, month, 1)
+    : period === 'year' ? Date.UTC(year, 0, 1)
+    : null;
+  return startLocal === null ? null : new Date(startLocal - shopUtcOffsetHours * 3_600_000);
+};
+
 // Учёт продаж: сколько и чего продано за период + последние движения склада
 app.get('/api/admin/stats', async (request, response) => {
   const admin = await requireAdmin(request, response);
   if (!admin) return;
 
   const period = textValue(request.query.period, 10);
-  const now = new Date();
-  const since =
-    period === 'day' ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    : period === 'week' ? new Date(now.getTime() - 7 * 86_400_000)
-    : period === 'month' ? new Date(now.getFullYear(), now.getMonth(), 1)
-    : period === 'year' ? new Date(now.getFullYear(), 0, 1)
-    : null;
+  const since = periodStart(period);
 
   const [items, products, stockLogs] = await Promise.all([
     prisma.orderItem.findMany({
@@ -1348,7 +1416,10 @@ if (staticDir && fs.existsSync(staticDir)) {
   app.use(express.static(staticDir, {
     index: false,
     setHeaders: (response, filePath) => {
-      if (filePath.includes(`${path.sep}assets${path.sep}`)) response.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      const isHashed = /-[A-Za-z0-9_-]{8,}\.(js|css)$/.test(filePath);
+      if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        response.setHeader('Cache-Control', isHashed ? 'public, max-age=31536000, immutable' : 'public, max-age=86400');
+      }
       else if (/.(webp|png|jpe?g)$/i.test(filePath)) response.setHeader('Cache-Control', 'public, max-age=604800');
     },
   }));
@@ -1360,10 +1431,23 @@ if (staticDir && fs.existsSync(staticDir)) {
 }
 
 app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
-  const message = error instanceof Error ? error.message : 'Unknown error';
-  // Наши ошибки бизнес-логики написаны по-русски — их можно показать пользователю
-  if (/[а-яё]/i.test(message)) {
-    response.status(409).json({ error: message });
+  // Показываем пользователю только наши осознанные сообщения
+  if (error instanceof UserError) {
+    response.status(error.status).json({ error: error.message });
+    return;
+  }
+  const status = isRecord(error) && typeof error.status === 'number' ? error.status : 0;
+  if (status === 413) {
+    response.status(413).json({ error: 'Слишком большой запрос.' });
+    return;
+  }
+  if (status >= 400 && status < 500) {
+    response.status(400).json({ error: 'Некорректный запрос.' });
+    return;
+  }
+  // Prisma: запись не найдена (например, удалили в другой вкладке)
+  if (isRecord(error) && error.code === 'P2025') {
+    response.status(404).json({ error: 'Не найдено — обновите страницу.' });
     return;
   }
   console.error('[api]', error);
@@ -1372,7 +1456,9 @@ app.use((error: unknown, _request: express.Request, response: express.Response, 
 
 const server = app.listen(port, '0.0.0.0', () => {
   console.log(`API server is running on http://localhost:${port}`);
-  if (botToken && process.env.TELEGRAM_POLLING === '1') startTelegramPolling();
+  if (botToken && process.env.TELEGRAM_POLLING === '1') {
+    startTelegramPolling().catch((error) => console.error('[bot] Long polling остановлен:', error));
+  }
 });
 
 const shutdown = () => {

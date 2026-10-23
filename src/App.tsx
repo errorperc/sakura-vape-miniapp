@@ -1,6 +1,5 @@
 import { Loader2, WifiOff } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { AdminPanel } from './components/AdminPanel';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { BottomNav } from './components/BottomNav';
 import { initialCategories, initialDeliverySettings, initialOrders, initialProducts } from './data/mockData';
 import {
@@ -25,7 +24,6 @@ import { getDeliverySettings, saveDeliverySettings } from './lib/settingsApi';
 import { cleanName } from '../shared/text';
 import { formatUserName, getTelegramUser, haptic, initTelegramApp, isOwnerUser } from './lib/telegram';
 import { getAdminSession } from './lib/teamApi';
-import { AdminOrdersPage } from './pages/AdminOrdersPage';
 import { CartPage, type ResolvedCartItem } from './pages/CartPage';
 import { HomePage } from './pages/HomePage';
 import { ProductSheet } from './components/ProductSheet';
@@ -46,10 +44,15 @@ import type {
   View,
 } from './types';
 
+// Админские экраны покупателям не нужны — их код грузится, только когда админ их открывает
+const AdminPanel = lazy(() => import('./components/AdminPanel').then((module) => ({ default: module.AdminPanel })));
+const AdminOrdersPage = lazy(() => import('./pages/AdminOrdersPage').then((module) => ({ default: module.AdminOrdersPage })));
+
 const storageKeys = {
   age: 'vape-shop-age-confirmed',
   delivery: 'vape-shop-delivery-draft',
   deliverySettings: 'vape-shop-delivery-settings',
+  catalog: 'vape-shop-catalog',
 };
 
 interface CatalogPayload {
@@ -123,14 +126,18 @@ function App() {
   const clearCart = useCartStore((state) => state.clearCart);
   const getCartQuantity = useCartStore((state) => state.getQuantity);
   const [view, setView] = useState<View>('home');
-  const [loading, setLoading] = useState(true);
+  // Каталог прошлого визита: показываем сразу, свежий подтянется в фоне — без спиннера на каждом входе
+  const [cachedCatalog] = useState(() => (user.isDemo ? null : readStorage<CatalogPayload | null>(storageKeys.catalog, null)));
+  const [loading, setLoading] = useState(() => !cachedCatalog);
   const [selectedFilterId, setSelectedFilterId] = useState('all');
   const [ageConfirmed, setAgeConfirmed] = useState(() => readStorage(storageKeys.age, false));
   // Демо-товары только для предпросмотра вне Telegram — реальный покупатель видит лишь каталог с сервера
-  const [products, setProducts] = useState<Product[]>(() => (user.isDemo ? normalizeProducts(initialProducts) : []));
+  const [products, setProducts] = useState<Product[]>(() =>
+    user.isDemo ? normalizeProducts(initialProducts) : normalizeProducts(cachedCatalog?.products ?? []),
+  );
   const [catalogFailed, setCatalogFailed] = useState(false);
   const [openedProductId, setOpenedProductId] = useState<string | null>(null);
-  const [categories, setCategories] = useState<CatalogCategory[]>(initialCategories);
+  const [categories, setCategories] = useState<CatalogCategory[]>(() => cachedCatalog?.categories ?? initialCategories);
   const [orders, setOrders] = useState<Order[]>(() => (user.isDemo ? initialOrders : []));
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [cartWarning, setCartWarning] = useState('');
@@ -159,7 +166,7 @@ function App() {
   };
 
   const refreshPublicCatalog = async () => {
-    const catalog = await getCatalog();
+    const catalog = await getCatalog(true);
     applyCatalog(catalog);
   };
 
@@ -170,7 +177,7 @@ function App() {
 
   const loadStore = () => {
     let isMounted = true;
-    setLoading(true);
+    if (!cachedCatalog) setLoading(true);
     setCatalogFailed(false);
 
     Promise.allSettled([getCatalog(), getDeliverySettings()])
@@ -179,7 +186,8 @@ function App() {
 
         if (catalogResult.status === 'fulfilled') {
           applyCatalog(catalogResult.value);
-        } else if (!user.isDemo) {
+          writeStorage(storageKeys.catalog, catalogResult.value);
+        } else if (!user.isDemo && !cachedCatalog) {
           setCatalogFailed(true);
         }
 
@@ -758,7 +766,17 @@ function App() {
 
   return (
     <div className={`app-shell ${showCartBar ? 'has-cart-bar' : ''}`}>
-      {renderView()}
+      <Suspense
+        fallback={
+          <main className="page page--center">
+            <div className="loading-state">
+              <Loader2 size={30} aria-hidden="true" />
+            </div>
+          </main>
+        }
+      >
+        {renderView()}
+      </Suspense>
       {openedProduct ? (
         <ProductSheet
           product={openedProduct}

@@ -9,7 +9,7 @@ const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? 'Request failed.');
+    throw new Error(body?.error ?? 'Не получилось. Проверьте интернет и попробуйте ещё раз.');
   }
 
   return (await response.json()) as T;

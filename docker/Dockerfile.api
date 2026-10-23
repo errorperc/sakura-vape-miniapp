@@ -19,6 +19,10 @@ COPY shared ./shared
 COPY scripts ./scripts
 COPY server ./server
 
+# Папки для фото и миниатюр принадлежат node: процесс работает без root
+RUN mkdir -p /app/data/uploads /app/data/thumbs && chown -R node:node /app/data
+USER node
+
 EXPOSE 4000
 
 CMD ["node_modules/.bin/tsx", "server/src/index.ts"]

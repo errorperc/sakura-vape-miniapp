@@ -14,7 +14,7 @@ const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? 'Request failed.');
+    throw new Error(body?.error ?? 'Не получилось. Проверьте интернет и попробуйте ещё раз.');
   }
 
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
@@ -37,7 +37,16 @@ const adminJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
   });
 };
 
-export const getCatalog = () => requestJson<CatalogPayload>('/api/catalog');
+// Каталог запрашиваем сразу при загрузке модуля — параллельно со стартом React, а не после первого рендера
+let earlyCatalog: Promise<CatalogPayload> | null = requestJson<CatalogPayload>('/api/catalog');
+earlyCatalog.catch(() => undefined);
+
+// fresh — в обход кэша браузера: после заказа нужны актуальные остатки
+export const getCatalog = (fresh = false) => {
+  const early = fresh ? null : earlyCatalog;
+  earlyCatalog = null;
+  return early ?? requestJson<CatalogPayload>('/api/catalog', fresh ? { cache: 'no-store' } : undefined);
+};
 
 export const getAdminCatalog = () => adminJson<CatalogPayload>('/api/admin/catalog');
 

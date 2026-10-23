@@ -87,7 +87,7 @@ export function ProductCard({ product, cartQuantity, onAddToCart, onChangeQuanti
 
   return (
     <article
-      className={`product-card product-card--${getStockClassName(availableCount)}`}
+      className={`product-card product-card--${getStockClassName(availableCount)} ${index < 2 ? 'is-hero' : ''}`}
       role="button"
       tabIndex={0}
       onClick={() => onOpen(product)}
@@ -96,7 +96,7 @@ export function ProductCard({ product, cartQuantity, onAddToCart, onChangeQuanti
       style={{ '--i': Math.min(index, 8) } as CSSProperties}
     >
       <div className="product-card__media">
-        <ProductImage src={product.image} width={480} eager={eager} />
+        <ProductImage src={product.image} width={480} eager={eager} priority={index < 2} sizes="(min-width: 560px) 200px, 50vw" />
         {stockLabel ? <span className="product-card__stock">{stockLabel}</span> : null}
       </div>
 

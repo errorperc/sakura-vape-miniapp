@@ -25,6 +25,10 @@ const periods: Array<{ id: StatsPeriod; label: string }> = [
 
 const stockReasons: Record<string, string> = {
   seed: 'Стартовый остаток',
+  order: 'Заказ покупателя',
+  restock: 'Поступление',
+  writeoff: 'Списание',
+  inventory: 'Инвентаризация',
   admin_create: 'Новый товар',
   admin_update: 'Правка остатка',
   offline_sale: 'Офлайн-продажа',

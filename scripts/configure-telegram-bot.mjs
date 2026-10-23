@@ -1,3 +1,5 @@
+import { createHmac } from 'node:crypto';
+
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const miniAppUrl = process.env.TELEGRAM_MINI_APP_URL;
 
@@ -47,6 +49,8 @@ await callBotApi('setChatMenuButton', {
 await callBotApi('setWebhook', {
   url: webhookUrl,
   allowed_updates: ['message', 'callback_query'],
+  // Тот же секрет вычисляет сервер: без него вебхук отвечает 401
+  secret_token: createHmac('sha256', token).update('sakura-webhook').digest('hex'),
   drop_pending_updates: true,
 });
 

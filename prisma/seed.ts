@@ -90,7 +90,8 @@ async function main() {
   for (const category of categories) {
     await prisma.category.upsert({
       where: { id: category.id },
-      update: { label: category.label },
+      // Не перезаписываем названия, исправленные в админке
+      update: {},
       create: category,
     });
   }

@@ -7,20 +7,33 @@ interface ProductImageProps {
   width: ThumbWidth;
   alt?: string;
   eager?: boolean;
+  /** Фото первого экрана: грузится первым и показывается без проявления */
+  priority?: boolean;
+  /** Подсказка браузеру, какой ширины будет фото на экране — для выбора размера из srcset */
+  sizes?: string;
 }
 
-// Фото товара: миниатюра нужной ширины, плавное появление и запасной вариант — оригинал
-export function ProductImage({ src, width, alt = '', eager = false }: ProductImageProps) {
+const srcSetWidths: ThumbWidth[] = [160, 320, 480, 900];
+
+// Фото товара: миниатюра подходящей ширины, плавное появление и запасной вариант — оригинал
+export function ProductImage({ src, width, alt = '', eager = false, priority = false, sizes }: ProductImageProps) {
   const [loaded, setLoaded] = useState(false);
   const [fallback, setFallback] = useState(false);
+  const thumbSource = thumbAsset(src, width);
+  const canUseSrcSet = !fallback && sizes && thumbSource !== publicAsset(src);
 
   return (
     <img
-      className={`product-image ${loaded ? 'is-loaded' : ''}`}
-      src={fallback ? publicAsset(src) : thumbAsset(src, width)}
+      className={`product-image ${loaded ? 'is-loaded' : ''} ${priority ? 'is-instant' : ''}`}
+      src={fallback ? publicAsset(src) : thumbSource}
+      srcSet={canUseSrcSet ? srcSetWidths.map((w) => `${thumbAsset(src, w)} ${w}w`).join(', ') : undefined}
+      sizes={canUseSrcSet ? sizes : undefined}
+      width={width}
+      height={width}
       alt={alt}
-      loading={eager ? 'eager' : 'lazy'}
-      decoding="async"
+      loading={eager || priority ? 'eager' : 'lazy'}
+      decoding={priority ? 'sync' : 'async'}
+      fetchPriority={priority ? 'high' : 'auto'}
       onLoad={() => setLoaded(true)}
       onError={() => !fallback && setFallback(true)}
     />

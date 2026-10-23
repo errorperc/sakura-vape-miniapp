@@ -2905,3 +2905,50 @@ body::-webkit-scrollbar {
     transform: translateY(24px) scale(0.96);
   }
 }
+
+/* ---------- Производительность (Core Web Vitals) ----------
+   Размытие под каждой карточкой пересчитывалось на каждом кадре прокрутки — на средних Android это рывки.
+   Оставляем стекло только на «хроме» (меню, прилипшая шапка), карточкам — плотный полупрозрачный фон. */
+:root {
+  --blur: none;
+  --blur-chrome: saturate(180%) blur(18px);
+  --surface: rgba(24, 21, 25, 0.88);
+}
+
+.bottom-nav,
+.sheet__close {
+  backdrop-filter: var(--blur-chrome);
+  -webkit-backdrop-filter: var(--blur-chrome);
+}
+
+.product-card__stock {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+/* Заглушка фото — статичная: анимация background-position перерисовывала карточку каждый кадр */
+.product-card__media,
+.sheet__media,
+.cart-item__media {
+  animation: none;
+  background: #151115;
+}
+
+/* Первая строка каталога и фото первого экрана появляются сразу, без задержек и проявления:
+   так быстрее «крупнейшая отрисовка» (LCP) */
+.product-card.is-hero {
+  animation: none;
+}
+
+.product-image.is-instant {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+/* Карточки за пределами экрана браузер не рисует, пока до них не долистали */
+.product-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}

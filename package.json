@@ -6,7 +6,7 @@
   "scripts": {
     "local": "node scripts/local.mjs",
     "dev": "vite --host 127.0.0.1",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "images:webp": "node scripts/convert-product-images.mjs",
     "bot:configure": "node scripts/configure-telegram-bot.mjs",
@@ -18,7 +18,9 @@
     "docker:up": "docker compose up -d --build --wait",
     "docker:logs": "docker compose logs -f --tail=100",
     "data:export": "node scripts/data-transfer.mjs export",
-    "data:import": "node scripts/data-transfer.mjs import"
+    "data:import": "node scripts/data-transfer.mjs import",
+    "typecheck": "tsc -b && tsc -p tsconfig.server.json",
+    "test": "vitest run"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -30,7 +32,7 @@
     "lucide-react": "^1.17.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.5",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
@@ -42,6 +44,7 @@
     "prisma": "^6.19.3",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^3.2.7"
   }
 }

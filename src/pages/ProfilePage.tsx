@@ -56,8 +56,10 @@ const getClientLevel = (orders: Order[]) => {
 
 export function ProfilePage({ user, orders, isAdmin }: ProfilePageProps) {
   const name = formatUserName(user);
-  const total = orders.reduce((sum, order) => sum + order.total, 0);
-  const lastOrder = orders[0];
+  // Отменённые заказы не считаются ни в покупках, ни в среднем чеке, ни в уровне
+  const paidOrders = orders.filter((order) => order.status !== 'Отменен');
+  const total = paidOrders.reduce((sum, order) => sum + order.total, 0);
+  const lastOrder = paidOrders[0];
   const clientLevel = getClientLevel(orders);
   const LevelIcon = clientLevel.level.icon;
   const initials = `${user.firstName[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase();
@@ -119,7 +121,7 @@ export function ProfilePage({ user, orders, isAdmin }: ProfilePageProps) {
         <div className="stat-card">
           <span className="stat-card__icon"><ShoppingBag size={16} aria-hidden="true" /></span>
           <span>Заказы</span>
-          <strong>{orders.length}</strong>
+          <strong>{paidOrders.length}</strong>
         </div>
         <div className="stat-card">
           <span className="stat-card__icon"><WalletCards size={16} aria-hidden="true" /></span>
@@ -138,7 +140,7 @@ export function ProfilePage({ user, orders, isAdmin }: ProfilePageProps) {
         <div className="stat-card">
           <span className="stat-card__icon"><Sparkles size={16} aria-hidden="true" /></span>
           <span>Средний чек</span>
-          <strong>{orders.length ? Math.round(total / orders.length).toLocaleString('ru-RU') : 0} ₽</strong>
+          <strong>{paidOrders.length ? Math.round(total / paidOrders.length).toLocaleString('ru-RU') : 0} ₽</strong>
         </div>
       </section>
 

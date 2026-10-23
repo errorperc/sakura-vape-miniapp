@@ -5,6 +5,10 @@
 		-Server
 		X-Content-Type-Options nosniff
 		Referrer-Policy no-referrer
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		# Telegram Web открывает мини-апп во фрейме — разрешаем только свои домены Telegram
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors https://web.telegram.org https://*.telegram.org; object-src 'none'; base-uri 'none'"
 	}
 
 	@html path / /index.html
@@ -14,14 +18,26 @@
 		Expires "0"
 	}
 
-	@static path /assets/*
-	header @static Cache-Control "public, max-age=31536000, immutable"
+	# Навсегда кэшируем только файлы с хешем в имени (сборка Vite);
+	# логотип и фон из public/ без хеша — на сутки, чтобы замена файла доходила до людей
+	@hashed path_regexp ^/assets/.+-[A-Za-z0-9_-]{8,}\.(js|css)$
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+	@publicAssets {
+		path /assets/*
+		not path_regexp ^/assets/.+-[A-Za-z0-9_-]{8,}\.(js|css)$
+	}
+	header @publicAssets Cache-Control "public, max-age=86400"
 
 	@productImages path /products/*
 	header @productImages Cache-Control "public, max-age=604800"
 
 	@api path /api/* /uploads/* /thumbs/*
 	handle @api {
+		# Фото товара в base64 — самый большой запрос; всё крупнее отсекаем ещё на входе
+		request_body {
+			max_size 7MB
+		}
 		reverse_proxy api:4000
 	}
 
@@ -33,6 +49,12 @@
 
 	log {
 		output stdout
-		format console
+		# Подпись Telegram — это пропуск пользователя на сутки, в логах ей не место
+		format filter {
+			wrap console
+			fields {
+				request>headers>X-Telegram-Init-Data delete
+			}
+		}
 	}
 }

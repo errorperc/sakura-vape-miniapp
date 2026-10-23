@@ -59,6 +59,11 @@ services:
       THUMBS_DIR: /app/data/thumbs
     volumes:
       - uploads:/app/data/uploads
+      - thumbs:/app/data/thumbs
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     expose:
       - "4000"
     depends_on:
@@ -138,3 +143,4 @@ volumes:
   caddy_config:
   postgres_data:
   uploads:
+  thumbs:

@@ -119,6 +119,8 @@ export function AdminPanel({
   const [deliverySaved, setDeliverySaved] = useState(false);
   // Пока фото не выбрано вручную, подставляем фото той же модели
   const [imageTouched, setImageTouched] = useState(false);
+  // Остаток на момент открытия формы: сервер по нему поймёт, что пока редактировали, были продажи
+  const [baseStockCount, setBaseStockCount] = useState<number | null>(null);
   const gallery = useMemo(() => galleryImages(products), [products]);
 
   const isEditing = useMemo(() => Boolean(editingId), [editingId]);
@@ -202,7 +204,7 @@ export function AdminPanel({
       stock: stockCount === 0 ? 'out_of_stock' : stockCount <= 5 ? 'low_stock' : 'in_stock',
     };
 
-    if (editingId) await onUpdateProduct(normalized);
+    if (editingId) await onUpdateProduct({ ...normalized, baseStockCount } as Product);
     else await onCreateProduct(normalized);
     resetForm();
   };
@@ -211,6 +213,7 @@ export function AdminPanel({
     setDraft(product);
     setEditingId(product.id);
     setImageTouched(!isPlaceholderImage(product.image));
+    setBaseStockCount(product.stockCount);
     setIsProductEditorOpen(true);
     focusProductEditor();
   };
