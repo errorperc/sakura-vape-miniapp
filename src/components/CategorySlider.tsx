@@ -8,7 +8,7 @@ import {
   Wrench,
   Zap,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type { WheelEvent } from 'react';
 import type { CatalogFilter } from '../types';
 
@@ -73,15 +73,19 @@ export function CategorySlider({ filters, activeFilterId, onChange }: CategorySl
       onScroll={updateScrollEdges}
       onWheel={handleWheel}
     >
-      {filters.map((filter) => {
+      {filters.map((filter, index) => {
         const Icon = getFilterIcon(filter);
         const isActive = filter.id === activeFilterId;
 
+        // Между категориями и брендами — тонкий разделитель, чтобы два типа фильтров не смешивались
+        const startsBrands = filter.mode === 'brand' && filters[index - 1]?.mode !== 'brand';
+
         return (
+          <Fragment key={filter.id}>
+          {startsBrands ? <span className="chip-divider" aria-hidden="true" /> : null}
           <button
             className={`chip ${isActive ? 'chip--active' : ''}`}
             type="button"
-            key={filter.id}
             aria-pressed={isActive}
             onClick={(event) => {
               onChange(filter.id);
@@ -99,6 +103,7 @@ export function CategorySlider({ filters, activeFilterId, onChange }: CategorySl
             </span>
             <span className="chip__label">{filter.label}</span>
           </button>
+          </Fragment>
         );
       })}
     </div>

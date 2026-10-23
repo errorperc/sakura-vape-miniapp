@@ -29,6 +29,7 @@ import { AdminOrdersPage } from './pages/AdminOrdersPage';
 import { CartPage, type ResolvedCartItem } from './pages/CartPage';
 import { HomePage } from './pages/HomePage';
 import { ProductSheet } from './components/ProductSheet';
+import { CartBar } from './components/CartBar';
 import { ProfilePage } from './pages/ProfilePage';
 import { useCartStore } from './store/cartStore';
 import type {
@@ -310,6 +311,8 @@ function App() {
   const cartTotal = useMemo(() => {
     return resolvedCart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   }, [resolvedCart]);
+
+  const showCartBar = ageConfirmed && view === 'home' && cartCount > 0 && !loading;
 
   const userOrders = useMemo(() => {
     return orders
@@ -743,6 +746,7 @@ function App() {
         onConfirmAge={confirmAge}
         onFilterChange={setSelectedFilterId}
         onAddToCart={addToCart}
+        onChangeQuantity={changeQuantity}
         onOpenProduct={(product) => {
           setOpenedProductId(product.id);
           haptic('light');
@@ -753,7 +757,7 @@ function App() {
   };
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${showCartBar ? 'has-cart-bar' : ''}`}>
       {renderView()}
       {openedProduct ? (
         <ProductSheet
@@ -764,6 +768,7 @@ function App() {
           onClose={() => setOpenedProductId(null)}
         />
       ) : null}
+      {showCartBar ? <CartBar count={cartCount} total={cartTotal} onOpen={() => setView('cart')} /> : null}
       {ageConfirmed ? <BottomNav activeView={view} isAdmin={isAdmin} cartCount={cartCount} onNavigate={setView} /> : null}
     </div>
   );

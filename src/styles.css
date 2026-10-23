@@ -2690,3 +2690,218 @@ body::-webkit-scrollbar {
   font-size: 15px;
   animation: page-in 0.4s var(--ease-out);
 }
+
+/* ---------- Карточка: вкус, цена, кнопка-счётчик ---------- */
+
+.product-card__taste {
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-card__price {
+  margin-top: 6px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Покой: стеклянная «+ В корзину». В корзине: фон перетекает в розовый, по краям раскрываются − и + */
+.cart-control {
+  display: grid;
+  grid-template-columns: 0px 1fr 0px;
+  align-items: center;
+  height: 40px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--fill);
+  transition: grid-template-columns 0.45s var(--ease-ios), background-color 0.35s var(--ease-out);
+}
+
+.cart-control.is-active {
+  grid-template-columns: 40px 1fr 40px;
+  background: var(--accent-fill);
+}
+
+.cart-control__main,
+.cart-control__side {
+  display: inline-flex;
+  height: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  transition: opacity 0.3s var(--ease-out), transform 0.4s var(--ease-out), background-color 0.25s var(--ease-out);
+}
+
+.cart-control__main:active:not(:disabled) {
+  transform: scale(0.96);
+  transition-duration: var(--press-in);
+}
+
+.cart-control__main:disabled {
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+.cart-control__side {
+  overflow: hidden;
+  opacity: 0;
+}
+
+.cart-control.is-active .cart-control__side {
+  opacity: 1;
+}
+
+.cart-control__side:active:not(:disabled) {
+  background: rgba(0, 0, 0, 0.18);
+  transition-duration: var(--press-in);
+}
+
+.cart-control__side:disabled {
+  opacity: 0.4;
+}
+
+.cart-control__count {
+  overflow: hidden;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+  animation: count-pop 0.35s var(--ease-out);
+}
+
+@keyframes count-pop {
+  from {
+    opacity: 0;
+    transform: translateY(40%);
+  }
+}
+
+/* Прошлая круглая кнопка «+» больше не используется */
+.product-card__footer {
+  display: none;
+}
+
+/* ---------- Компактная шапка каталога ---------- */
+.catalog-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 4px 12px;
+}
+
+.catalog-title__logo {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 16px rgba(255, 55, 95, 0.3));
+}
+
+.catalog-title__text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.catalog-title h1 {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.catalog-title small {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.chip-divider {
+  width: 1px;
+  height: 22px;
+  flex: none;
+  align-self: center;
+  margin: 0 2px;
+  background: var(--separator);
+}
+
+/* ---------- Плашка корзины над меню ---------- */
+.cart-bar {
+  position: fixed;
+  z-index: 19;
+  right: 12px;
+  bottom: calc(var(--safe-bottom) + 10px + var(--nav-height) + 8px);
+  left: 12px;
+  display: flex;
+  max-width: 616px;
+  height: 52px;
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto;
+  padding: 0 14px 0 8px;
+  border-radius: 18px;
+  background: var(--accent-fill);
+  color: #fff;
+  box-shadow: 0 12px 30px -10px rgba(225, 29, 72, 0.6);
+  animation: cart-bar-in 0.5s var(--ease-ios);
+  transition: transform 0.4s var(--ease-ios), opacity 0.3s var(--ease-out);
+}
+
+.cart-bar:active {
+  transform: scale(0.98);
+  transition-duration: var(--press-in);
+}
+
+.cart-bar__icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.cart-bar__text {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.cart-bar__text em {
+  font-style: normal;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.cart-bar strong {
+  font-size: 16px;
+  font-weight: 700;
+  animation: count-pop 0.35s var(--ease-out);
+}
+
+.has-cart-bar .page {
+  padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 96px);
+}
+
+.keyboard-open .cart-bar {
+  opacity: 0;
+  transform: translateY(calc(100% + var(--nav-height) + 40px));
+  pointer-events: none;
+}
+
+@keyframes cart-bar-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+  }
+}

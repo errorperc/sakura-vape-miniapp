@@ -1,5 +1,5 @@
-import { Check, Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Minus, Plus } from 'lucide-react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { AnimationEvent, CSSProperties, MouseEvent } from 'react';
 import { thumbAsset } from '../lib/assets';
@@ -10,6 +10,7 @@ interface ProductCardProps {
   product: Product;
   cartQuantity: number;
   onAddToCart: (product: Product) => boolean;
+  onChangeQuantity: (productId: string, quantity: number) => void;
   onOpen: (product: Product) => void;
   eager?: boolean;
   index?: number;
@@ -67,25 +68,21 @@ export const useCartFly = () => {
   return { launch, renderFly };
 };
 
-export function ProductCard({ product, cartQuantity, onAddToCart, onOpen, eager = false, index = 0 }: ProductCardProps) {
-  const [added, setAdded] = useState(false);
+export function ProductCard({ product, cartQuantity, onAddToCart, onChangeQuantity, onOpen, eager = false, index = 0 }: ProductCardProps) {
   const { launch, renderFly } = useCartFly();
   const availableCount = Math.max(0, product.stockCount - cartQuantity);
-  const unavailable = !product.isActive || availableCount <= 0;
+  const inCart = cartQuantity > 0;
+  const unavailable = !product.isActive || (availableCount <= 0 && !inCart);
   const stockLabel = getStockLabel(availableCount, cartQuantity);
 
-  useEffect(() => {
-    if (!added) return;
-    const timer = window.setTimeout(() => setAdded(false), 1100);
-    return () => window.clearTimeout(timer);
-  }, [added]);
-
-  const handleAdd = (event: MouseEvent<HTMLButtonElement>) => {
+  const add = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    if (onAddToCart(product)) {
-      launch(event);
-      setAdded(true);
-    }
+    if (onAddToCart(product)) launch(event);
+  };
+
+  const remove = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    onChangeQuantity(product.id, cartQuantity - 1);
   };
 
   return (
@@ -94,7 +91,7 @@ export function ProductCard({ product, cartQuantity, onAddToCart, onOpen, eager 
       role="button"
       tabIndex={0}
       onClick={() => onOpen(product)}
-      onKeyDown={(event) => event.key === 'Enter' && onOpen(product)}
+      onKeyDown={(event) => event.key === 'Enter' && event.target === event.currentTarget && onOpen(product)}
       aria-label={`${product.brand} ${product.name}`}
       style={{ '--i': Math.min(index, 8) } as CSSProperties}
     >
@@ -106,18 +103,38 @@ export function ProductCard({ product, cartQuantity, onAddToCart, onOpen, eager 
       <div className="product-card__body">
         <span className="product-card__brand">{product.brand}</span>
         <h3>{product.name}</h3>
-        <div className="product-card__footer">
-          <strong>{product.price.toLocaleString('ru-RU')} ₽</strong>
+        {product.taste ? <span className="product-card__taste">{product.taste}</span> : null}
+        <strong className="product-card__price">{product.price.toLocaleString('ru-RU')} ₽</strong>
+
+        {/* Одна кнопка, которая превращается в счётчик: «+ В корзину» → «− 2 шт +» */}
+        <div className={`cart-control ${inCart ? 'is-active' : ''}`} onClick={(event) => event.stopPropagation()}>
+          <button className="cart-control__side" type="button" onClick={remove} tabIndex={inCart ? 0 : -1} aria-label="Убрать одну штуку">
+            <Minus size={16} strokeWidth={2.75} aria-hidden="true" />
+          </button>
+          {inCart ? (
+            <span className="cart-control__count" aria-live="polite" key={cartQuantity}>
+              {cartQuantity} шт
+            </span>
+          ) : (
+            <button className="cart-control__main" type="button" onClick={add} disabled={unavailable}>
+              {unavailable ? (
+                'Нет в наличии'
+              ) : (
+                <>
+                  <Plus size={16} strokeWidth={2.75} aria-hidden="true" /> В корзину
+                </>
+              )}
+            </button>
+          )}
           <button
-            className={`product-card__add ${added ? 'product-card__add--added' : ''}`}
+            className="cart-control__side"
             type="button"
-            disabled={unavailable}
-            onClick={handleAdd}
-            aria-label={`Добавить ${product.name} в корзину`}
+            onClick={add}
+            disabled={availableCount <= 0}
+            tabIndex={inCart ? 0 : -1}
+            aria-label="Добавить ещё одну"
           >
-            <Plus className="icon-plus" size={18} strokeWidth={2.75} aria-hidden="true" />
-            <Check className="icon-check" size={17} strokeWidth={3} aria-hidden="true" />
-            {cartQuantity > 0 ? <em key={cartQuantity}>{cartQuantity}</em> : null}
+            <Plus size={16} strokeWidth={2.75} aria-hidden="true" />
           </button>
         </div>
       </div>

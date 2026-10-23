@@ -16,6 +16,7 @@ interface HomePageProps {
   onConfirmAge: () => void;
   onFilterChange: (filterId: string) => void;
   onAddToCart: (product: Product) => boolean;
+  onChangeQuantity: (productId: string, quantity: number) => void;
   onOpenProduct: (product: Product) => void;
   getCartQuantity: (productId: string) => number;
 }
@@ -32,6 +33,7 @@ export function HomePage({
   onConfirmAge,
   onFilterChange,
   onAddToCart,
+  onChangeQuantity,
   onOpenProduct,
   getCartQuantity,
 }: HomePageProps) {
@@ -61,15 +63,11 @@ export function HomePage({
 
   return (
     <main className="page">
-      <div className="store-header">
-        <div className="store-brand">
-          <span className="store-logo" aria-hidden="true">
-            <img src={publicAsset('assets/sakura-logo.webp')} alt="" />
-          </span>
-          <div>
-            <strong>Sakura Vape</strong>
-            <small>Доставка по городу · 18+</small>
-          </div>
+      <header className="catalog-title">
+        <img className="catalog-title__logo" src={publicAsset('assets/sakura-logo.webp')} alt="Sakura Vape" />
+        <div className="catalog-title__text">
+          <h1>Каталог</h1>
+          <small>Sakura Vape · доставка по городу</small>
         </div>
         {isAdmin ? (
           <span className="admin-badge">
@@ -77,10 +75,6 @@ export function HomePage({
             Админ
           </span>
         ) : null}
-      </div>
-
-      <header className="large-title">
-        <h1>Каталог</h1>
       </header>
 
       <div className="sticky-sentinel" ref={sentinelRef} aria-hidden="true" />
@@ -111,6 +105,7 @@ export function HomePage({
               product={product}
               cartQuantity={getCartQuantity(product.id)}
               onAddToCart={onAddToCart}
+              onChangeQuantity={onChangeQuantity}
               onOpen={onOpenProduct}
               eager={index < 4}
               index={index}
