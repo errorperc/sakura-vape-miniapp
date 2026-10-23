@@ -2,14 +2,16 @@ import {
   BadgeCheck,
   CalendarClock,
   Crown,
-  Flower,
-  Flower2,
+  Cloud,
+  CloudFog,
+  CloudLightning,
   History,
   ShoppingBag,
   Sparkles,
-  Sprout,
+  Tornado,
   UserRound,
   WalletCards,
+  Wind,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { EmptyState } from '../components/EmptyState';
@@ -25,11 +27,11 @@ interface ProfilePageProps {
 
 // Уровни клиента: следующий открывается по числу заказов ИЛИ по сумме покупок
 const levels = [
-  { name: 'Бутон', text: 'Добро пожаловать в Sakura', icon: Sprout, orders: 0, spent: 0 },
-  { name: 'Первый цвет', text: 'Первый заказ уже с вами', icon: Flower, orders: 1, spent: 0 },
-  { name: 'Цветение', text: 'Вы — наш постоянный гость', icon: Flower2, orders: 3, spent: 5000 },
-  { name: 'Сакура', text: 'Любимый клиент магазина', icon: Sparkles, orders: 7, spent: 15000 },
-  { name: 'Ханами', text: 'Высший уровень — VIP', icon: Crown, orders: 15, spent: 30000 },
+  { name: 'Лёгкая дымка', text: 'Первая затяжка в Sakura', icon: Wind, orders: 0, spent: 0 },
+  { name: 'Облачко', text: 'Первый заказ уже ваш', icon: Cloud, orders: 1, spent: 0 },
+  { name: 'Туман', text: 'Вы здесь свой', icon: CloudFog, orders: 3, spent: 5000 },
+  { name: 'Грозовая туча', text: 'Любимый клиент магазина', icon: CloudLightning, orders: 7, spent: 15000 },
+  { name: 'Ураган', text: 'Высший уровень — VIP', icon: Tornado, orders: 15, spent: 30000 },
 ];
 
 const getClientLevel = (orders: Order[]) => {
