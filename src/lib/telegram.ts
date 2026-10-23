@@ -1,6 +1,7 @@
 import WebApp from '@twa-dev/sdk';
 import { OWNER_TELEGRAM_ID } from '../data/mockData';
 import type { TelegramUserProfile } from '../types';
+import { cleanName } from '../../shared/text';
 
 const demoUser: TelegramUserProfile = {
   id: 777000,
@@ -27,6 +28,30 @@ export const initTelegramApp = () => {
   }
 
   applyTelegramTheme();
+  watchKeyboard();
+};
+
+// Пока открыта клавиатура, прячем нижнее меню: на iOS оно иначе всплывает над клавиатурой и закрывает поля
+const watchKeyboard = () => {
+  const isTextField = (target: EventTarget | null) =>
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLInputElement && !['checkbox', 'radio', 'file', 'button', 'submit'].includes(target.type));
+  const root = document.documentElement;
+  let hideTimer = 0;
+
+  document.addEventListener('focusin', (event) => {
+    if (!isTextField(event.target)) return;
+    window.clearTimeout(hideTimer);
+    root.classList.add('keyboard-open');
+  });
+  // Переход между полями даёт focusout → focusin: ждём чуть-чуть, чтобы меню не мигало
+  document.addEventListener('focusout', (event) => {
+    if (!isTextField(event.target)) return;
+    hideTimer = window.setTimeout(() => {
+      if (!isTextField(document.activeElement)) root.classList.remove('keyboard-open');
+    }, 120);
+  });
 };
 
 export const getTelegramUser = (): TelegramUserProfile => {
@@ -99,5 +124,5 @@ export const applyTelegramTheme = () => {
 };
 
 export const formatUserName = (user: TelegramUserProfile) => {
-  return [user.firstName, user.lastName].filter(Boolean).join(' ');
+  return cleanName([user.firstName, user.lastName].map(cleanName).filter(Boolean).join(' '));
 };

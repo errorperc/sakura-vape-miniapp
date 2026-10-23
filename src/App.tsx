@@ -22,6 +22,7 @@ import {
   updateAdminOrderStatus,
 } from './lib/ordersApi';
 import { getDeliverySettings, saveDeliverySettings } from './lib/settingsApi';
+import { cleanName } from '../shared/text';
 import { formatUserName, getTelegramUser, haptic, initTelegramApp, isOwnerUser } from './lib/telegram';
 import { getAdminSession } from './lib/teamApi';
 import { AdminOrdersPage } from './pages/AdminOrdersPage';
@@ -133,13 +134,11 @@ function App() {
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [cartWarning, setCartWarning] = useState('');
   const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
-  const [deliveryDraft, setDeliveryDraft] = useState<CheckoutDraft>(() =>
-    readStorage(storageKeys.delivery, {
-      name: formatUserName(user),
-      address: '',
-      comment: '',
-    }),
-  );
+  const [deliveryDraft, setDeliveryDraft] = useState<CheckoutDraft>(() => {
+    const saved = readStorage<CheckoutDraft>(storageKeys.delivery, { name: formatUserName(user), address: '', comment: '' });
+    // В черновике могло остаться имя с невидимыми символами из Telegram
+    return { ...saved, name: cleanName(saved.name) || formatUserName(user) };
+  });
   const [deliverySettings, setDeliverySettings] = useState<DeliverySettings>(() =>
     readStorage(storageKeys.deliverySettings, initialDeliverySettings),
   );

@@ -129,7 +129,7 @@ export function CartPage({
         <EmptyState
           icon={<ShoppingCart size={32} aria-hidden="true" />}
           title="Корзина пуста"
-          text="Добавьте товары из каталога, а затем оформите доставку."
+          text="Загляните в каталог — там есть из чего выбрать."
           action={
             <button className="button button--primary" type="button" onClick={onNavigateHome}>
               Перейти в каталог
@@ -226,7 +226,7 @@ export function CartPage({
             Имя
             <span className="field-control">
               <UserRound size={17} aria-hidden="true" />
-              <input required value={form.name} onChange={(event) => update('name', event.target.value)} />
+              <input required value={form.name} onChange={(event) => update('name', event.target.value)} placeholder="Как к вам обращаться" autoComplete="given-name" />
             </span>
           </label>
           {!isPickup ? (

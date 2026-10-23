@@ -4,6 +4,7 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getAddressError } from '../../shared/address';
+import { cleanName } from '../../shared/text';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -246,13 +247,13 @@ const upsertAuthenticatedUser = async (telegramUser: TelegramInitUser) => {
   return prisma.user.upsert({
     where: { telegramId },
     update: {
-      firstName: [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' '),
+      firstName: cleanName([telegramUser.first_name, telegramUser.last_name].map(cleanName).join(' ')) || 'Покупатель',
       username: telegramUser.username,
       ...(isOwner ? { role: UserRole.owner } : {}),
     },
     create: {
       telegramId,
-      firstName: [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' '),
+      firstName: cleanName([telegramUser.first_name, telegramUser.last_name].map(cleanName).join(' ')) || 'Покупатель',
       username: telegramUser.username,
       role: isOwner ? UserRole.owner : UserRole.user,
     },
@@ -1160,7 +1161,7 @@ app.post('/api/orders', async (request, response) => {
         userId: user.id,
         totalPrice,
         status: OrderStatus.NEW,
-        deliveryName: textValue(delivery.name, 160) || user.firstName,
+        deliveryName: cleanName(textValue(delivery.name, 160)) || user.firstName,
         deliveryPhone: '',
         deliveryAddress,
         deliveryComment: textValue(delivery.comment, 500),

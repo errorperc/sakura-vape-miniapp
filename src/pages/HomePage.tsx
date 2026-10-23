@@ -92,7 +92,8 @@ export function HomePage({
       </div>
 
       {visibleProducts.length > 0 ? (
-        <div className="product-grid">
+        // Смена бренда или категории пересобирает сетку — карточки появляются каскадом, без резкой подмены
+        <div className="product-grid" key={activeFilterId}>
           {visibleProducts.map((product, index) => (
             <ProductCard
               product={product}

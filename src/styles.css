@@ -2555,9 +2555,42 @@ option {
     transform: none;
   }
 
+  .empty-state__icon {
+    animation: none;
+  }
+
   @keyframes fade-only {
     from {
       opacity: 0;
     }
+  }
+}
+
+/* Клавиатура открыта — нижнее меню уезжает вниз и не закрывает поля ввода */
+.bottom-nav {
+  transition: transform 0.4s var(--ease-ios), opacity 0.3s var(--ease-out);
+}
+
+.keyboard-open .bottom-nav {
+  opacity: 0;
+  transform: translateY(calc(100% + 24px));
+  pointer-events: none;
+}
+
+/* Пустая корзина: иконка мягко покачивается, кнопка по ширине текста */
+.empty-state__icon {
+  animation: empty-float 3.2s var(--ease-out) infinite alternate;
+}
+
+.empty-state .button {
+  padding: 0 28px;
+}
+
+@keyframes empty-float {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-5px);
   }
 }
