@@ -76,6 +76,20 @@ try {
   await stop();
 }
 
+// ---------- бот: не мешаем рабочему серверу ----------
+// Если вебхук бота смотрит на постоянный сервер, локальный запуск не трогает бота:
+// иначе long polling снял бы вебхук и магазин на сервере перестал бы получать сообщения.
+let botIsLocal = Boolean(botToken);
+if (botToken) {
+  const webhook = await telegram('getWebhookInfo', {}).catch(() => null);
+  const url = webhook?.url ?? '';
+  if (url && !/\.(lhr\.life|trycloudflare\.com)\//.test(url)) {
+    botIsLocal = false;
+    console.log(`\n  ⚠ Бот уже работает на сервере (${new URL(url).host}), локально он не подключается.`);
+    console.log('    Для тестов на компьютере заведите отдельного бота в @BotFather и впишите его токен в .env.\n');
+  }
+}
+
 // ---------- сервер ----------
 const startServer = (publicUrl) => {
   server?.removeAllListeners('exit');
@@ -83,7 +97,7 @@ const startServer = (publicUrl) => {
   server = spawn(`"${bin('tsx')}" server/src/index.ts`, {
     stdio: 'inherit',
     shell: true,
-    env: { ...process.env, PUBLIC_APP_URL: publicUrl, SERVE_STATIC: '1', TELEGRAM_POLLING: '1' },
+    env: { ...process.env, PUBLIC_APP_URL: publicUrl, SERVE_STATIC: '1', TELEGRAM_POLLING: botIsLocal ? '1' : '' },
   });
   server.on('exit', (code) => {
     if (!stopping) {
@@ -94,7 +108,7 @@ const startServer = (publicUrl) => {
 };
 
 const configureBot = async (url) => {
-  if (!botToken) return;
+  if (!botIsLocal) return;
   await telegram('setChatMenuButton', { menu_button: { type: 'web_app', text: 'Магазин', web_app: { url } } });
   await telegram('setMyCommands', {
     commands: [

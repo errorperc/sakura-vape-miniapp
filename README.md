@@ -78,6 +78,29 @@ npm run server:dev
 
 Важно: админские действия на production проверяются backend-ом через Telegram `initData`.
 
+## Переезд с компьютера на сервер
+
+1. На компьютере: `npm run data:export` — товары, заказы, учёт и команда сохранятся в `data/export.json`.
+2. Скопируйте на сервер `data/export.json` и папку `data/uploads` (фото, загруженные в админке):
+   `scp -r data/export.json data/uploads root@IP:/opt/sakura-vape/data/`
+3. На сервере после первого `docker compose up` (вместо `db:seed`):
+
+```bash
+cd /opt/sakura-vape
+sudo docker compose cp data/uploads/. api:/app/data/uploads/
+sudo docker compose cp data/export.json api:/app/data/export.json
+sudo docker compose exec api node scripts/data-transfer.mjs import /app/data/export.json
+```
+
+4. Переключите бота на сервер (вебхук и кнопка «Магазин»):
+
+```bash
+TELEGRAM_BOT_TOKEN=... TELEGRAM_MINI_APP_URL=https://ваш-домен/ npm run bot:configure
+```
+
+После этого `npm run local` бота не трогает: он видит, что бот работает на сервере. Для тестов на компьютере
+заведите отдельного бота.
+
 ## Production-сервер в Docker
 
 Для первого запуска достаточно Ubuntu 24.04, 1 vCPU, 2 GB RAM и 30 GB NVMe. На такой машине проект использует ограничения памяти для контейнеров и создаёт 2 GB swap. Для роста и более спокойных сборок рекомендуется 2 vCPU и 4 GB RAM.

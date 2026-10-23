@@ -15,6 +15,7 @@ RUN npm ci && npm cache clean --force
 
 COPY index.html vite.config.ts tsconfig.json tsconfig.node.json ./
 COPY public ./public
+COPY shared ./shared
 COPY src ./src
 
 RUN npm run build
