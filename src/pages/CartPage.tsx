@@ -23,6 +23,7 @@ import { ProductImage } from '../components/ProductImage';
 import { formatOrderId } from '../lib/ordersApi';
 import { segmentStyle } from '../lib/segment';
 import type { CheckoutDraft, DeliveryMethod, DeliverySettings, Order, Product } from '../types';
+import { realFlavor } from '../../shared/models';
 
 export interface ResolvedCartItem {
   product: Product;
@@ -155,7 +156,7 @@ export function CartPage({
             </div>
             <div className="cart-item__info">
               <strong>{product.name}</strong>
-              <span>{product.brand}</span>
+              <span>{[product.brand, realFlavor(product.taste)].filter(Boolean).join(' · ')}</span>
               <em>{(product.price * quantity).toLocaleString('ru-RU')} ₽</em>
             </div>
             <div className="quantity-control" aria-label={`Количество ${product.name}`}>

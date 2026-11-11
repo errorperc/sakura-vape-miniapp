@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { AgeGate } from '../components/AgeGate';
 import { CategorySlider } from '../components/CategorySlider';
 import { EmptyState } from '../components/EmptyState';
-import { ProductCard } from '../components/ProductCard';
+import { ModelCard, ProductCard } from '../components/ProductCard';
+import { groupByModel } from '../../shared/models';
 import { publicAsset } from '../lib/assets';
 import type { CatalogFilter, Product } from '../types';
 
@@ -59,7 +60,10 @@ export function HomePage({
   }
 
   const normalizedQuery = query.trim().toLowerCase();
-  const visibleProducts = normalizedQuery ? products.filter((product) => matchesQuery(product, normalizedQuery)) : products;
+  // Вкусы одной модели собраны в одну карточку; поиск находит модель по любому из её вкусов
+  const visibleModels = groupByModel(products).filter(
+    (model) => !normalizedQuery || model.variants.some((product) => matchesQuery(product, normalizedQuery)),
+  );
 
   return (
     <main className="page">
@@ -94,24 +98,35 @@ export function HomePage({
 
       <div className="section-heading">
         <h2>{normalizedQuery ? 'Результаты' : 'Все товары'}</h2>
-        <span>{visibleProducts.length} поз.</span>
+        <span>{visibleModels.length} поз.</span>
       </div>
 
-      {visibleProducts.length > 0 ? (
+      {visibleModels.length > 0 ? (
         // Смена бренда или категории пересобирает сетку — карточки появляются каскадом, без резкой подмены
         <div className="product-grid" key={activeFilterId}>
-          {visibleProducts.map((product, index) => (
-            <ProductCard
-              product={product}
-              cartQuantity={getCartQuantity(product.id)}
-              onAddToCart={onAddToCart}
-              onChangeQuantity={onChangeQuantity}
-              onOpen={onOpenProduct}
-              eager={index < 4}
-              index={index}
-              key={product.id}
-            />
-          ))}
+          {visibleModels.map((model, index) =>
+            model.variants.length > 1 ? (
+              <ModelCard
+                model={model}
+                getCartQuantity={getCartQuantity}
+                onOpen={onOpenProduct}
+                eager={index < 4}
+                index={index}
+                key={model.key}
+              />
+            ) : (
+              <ProductCard
+                product={model.variants[0]}
+                cartQuantity={getCartQuantity(model.variants[0].id)}
+                onAddToCart={onAddToCart}
+                onChangeQuantity={onChangeQuantity}
+                onOpen={onOpenProduct}
+                eager={index < 4}
+                index={index}
+                key={model.key}
+              />
+            ),
+          )}
         </div>
       ) : (
         <EmptyState

@@ -4,6 +4,7 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getAddressError } from '../../shared/address';
+import { orderItemTitle } from '../../shared/models';
 import { cleanName } from '../../shared/text';
 
 const prisma = new PrismaClient();
@@ -1198,7 +1199,7 @@ app.post('/api/orders', async (request, response) => {
       totalPrice += product.price * quantity;
       items.push({
         productId: product.id,
-        productTitle: product.title,
+        productTitle: orderItemTitle(product.title, product.flavor),
         quantity,
         priceAtPurchase: product.price,
       });
@@ -1325,7 +1326,7 @@ app.post('/api/admin/orders', async (request, response) => {
         items: {
           create: [{
             productId: product.id,
-            productTitle: product.title,
+            productTitle: orderItemTitle(product.title, product.flavor),
             quantity,
             priceAtPurchase: price,
           }],

@@ -22,6 +22,7 @@ import {
 } from './lib/ordersApi';
 import { getDeliverySettings, saveDeliverySettings } from './lib/settingsApi';
 import { cleanName } from '../shared/text';
+import { modelKey } from '../shared/models';
 import { formatUserName, getTelegramUser, haptic, initTelegramApp, isOwnerUser } from './lib/telegram';
 import { getAdminSession } from './lib/teamApi';
 import { CartPage, type ResolvedCartItem } from './pages/CartPage';
@@ -312,6 +313,11 @@ function App() {
   }, [cart, products]);
 
   const openedProduct = openedProductId ? products.find((product) => product.id === openedProductId) ?? null : null;
+  // Все вкусы открытой модели: шторка показывает их списком
+  const openedVariants = useMemo(
+    () => (openedProduct ? products.filter((product) => modelKey(product) === modelKey(openedProduct)) : []),
+    [openedProduct, products],
+  );
 
   const cartCount = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
 
@@ -779,8 +785,10 @@ function App() {
         <ProductSheet
           product={openedProduct}
           categories={categories}
-          cartQuantity={getCartQuantity(openedProduct.id)}
+          variants={openedVariants}
+          getCartQuantity={getCartQuantity}
           onAddToCart={addToCart}
+          onChangeQuantity={changeQuantity}
           onClose={() => setOpenedProductId(null)}
         />
       ) : null}

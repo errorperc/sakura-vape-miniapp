@@ -1,20 +1,35 @@
-import { Check, Plus, X } from 'lucide-react';
+import { Check, Minus, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import type { PointerEvent } from 'react';
+import type { MouseEvent, PointerEvent } from 'react';
 import { ProductImage } from './ProductImage';
 import type { CatalogCategory, Product } from '../types';
 import { getStockLabel, useCartFly } from './ProductCard';
+import { flavorCountLabel, realFlavor } from '../../shared/models';
 
 interface ProductSheetProps {
   product: Product;
   categories: CatalogCategory[];
-  cartQuantity: number;
+  /** Все вкусы этой модели, включая сам product */
+  variants: Product[];
+  getCartQuantity: (productId: string) => number;
   onAddToCart: (product: Product) => boolean;
+  onChangeQuantity: (productId: string, quantity: number) => void;
   onClose: () => void;
 }
 
-export function ProductSheet({ product, categories, cartQuantity, onAddToCart, onClose }: ProductSheetProps) {
+export function ProductSheet({ product, categories, variants, getCartQuantity, onAddToCart, onChangeQuantity, onClose }: ProductSheetProps) {
   const [added, setAdded] = useState(false);
+  const [flyImage, setFlyImage] = useState(product.image);
+  const cartQuantity = getCartQuantity(product.id);
+  // Несколько вкусов — показываем их списком со своим счётчиком у каждого
+  const hasFlavors = variants.length > 1;
+  const isAvailable = (variant: Product) => variant.isActive && variant.stockCount > 0;
+  const flavorRows = hasFlavors ? [...variants.filter(isAvailable), ...variants.filter((variant) => !isAvailable(variant))] : [];
+  const chosenCount = flavorRows.reduce((sum, variant) => sum + getCartQuantity(variant.id), 0);
+  const chosenTotal = flavorRows.reduce((sum, variant) => sum + getCartQuantity(variant.id) * variant.price, 0);
+  const flavorPrices = flavorRows.filter(isAvailable).map((variant) => variant.price);
+  const samePrice = new Set(flavorPrices).size <= 1;
+  const basePrice = flavorPrices.length > 0 ? Math.min(...flavorPrices) : product.price;
   const { launch, renderFly } = useCartFly();
   const availableCount = Math.max(0, product.stockCount - cartQuantity);
   const unavailable = !product.isActive || availableCount <= 0;
@@ -91,10 +106,10 @@ export function ProductSheet({ product, categories, cartQuantity, onAddToCart, o
   }, [added]);
 
   const specs = [
-    ['Вкус', product.taste],
+    ['Вкус', hasFlavors ? '' : realFlavor(product.taste)],
     ['Никотин', product.nicotine],
     ['Категория', category],
-    ['В наличии', availableCount > 0 ? `${availableCount} шт.` : getStockLabel(availableCount, cartQuantity)],
+    ['В наличии', hasFlavors ? '' : availableCount > 0 ? `${availableCount} шт.` : getStockLabel(availableCount, cartQuantity)],
   ].filter(([, value]) => Boolean(value));
 
   return (
@@ -131,26 +146,94 @@ export function ProductSheet({ product, categories, cartQuantity, onAddToCart, o
               </div>
             ))}
           </div>
-          <div className="sheet__buy">
-            <strong>{product.price.toLocaleString('ru-RU')} ₽</strong>
-            <button
-              className="button button--primary"
-              type="button"
-              disabled={unavailable}
-              onClick={(event) => {
-                if (onAddToCart(product)) {
-                  launch(event);
-                  setAdded(true);
-                }
-              }}
-            >
-              {added ? <Check size={18} aria-hidden="true" /> : <Plus size={18} aria-hidden="true" />}
-              {unavailable ? 'Нет в наличии' : cartQuantity > 0 ? `В корзине: ${cartQuantity}` : 'В корзину'}
-            </button>
-          </div>
+          {hasFlavors ? (
+            <>
+              <div className="flavor-heading">
+                <h3>Вкусы</h3>
+                <span>{flavorCountLabel(variants.filter(isAvailable).length || variants.length)}</span>
+              </div>
+              <ul className="flavor-list">
+                {flavorRows.map((variant) => {
+                  const quantity = getCartQuantity(variant.id);
+                  const left = Math.max(0, variant.stockCount - quantity);
+                  const soldOut = !isAvailable(variant);
+                  const note = soldOut
+                    ? 'Нет в наличии'
+                    : [samePrice ? '' : `${variant.price.toLocaleString('ru-RU')} ₽`, getStockLabel(left, quantity) || 'В наличии'].filter(Boolean).join(' · ');
+                  const add = (event: MouseEvent<HTMLButtonElement>) => {
+                    if (!onAddToCart(variant)) return;
+                    setFlyImage(variant.image);
+                    launch(event);
+                  };
+
+                  return (
+                    <li className={`flavor-row ${soldOut ? 'is-out' : ''} ${quantity > 0 ? 'is-chosen' : ''}`} key={variant.id}>
+                      <span className="flavor-row__dot" style={{ background: variant.accent }} aria-hidden="true" />
+                      <div className="flavor-row__text">
+                        <strong>{realFlavor(variant.taste) || 'Вкус не указан'}</strong>
+                        <span className={left > 0 && left <= 5 && !soldOut ? 'is-low' : ''}>{note}</span>
+                      </div>
+                      {soldOut ? null : quantity > 0 ? (
+                        <div className="quantity-control" aria-label={`Количество: ${realFlavor(variant.taste)}`}>
+                          <button className="icon-button" type="button" onClick={() => onChangeQuantity(variant.id, quantity - 1)} aria-label="Убрать одну штуку">
+                            <Minus size={16} strokeWidth={2.5} aria-hidden="true" />
+                          </button>
+                          <strong aria-live="polite">{quantity}</strong>
+                          <button className="icon-button" type="button" onClick={add} disabled={left <= 0} aria-label="Добавить ещё одну">
+                            <Plus size={16} strokeWidth={2.5} aria-hidden="true" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button className="icon-button flavor-row__add" type="button" onClick={add} aria-label={`Добавить: ${realFlavor(variant.taste)}`}>
+                          <Plus size={18} strokeWidth={2.5} aria-hidden="true" />
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="sheet__buy sheet__buy--flavors">
+                {chosenCount > 0 ? (
+                  <>
+                    <strong>{chosenTotal.toLocaleString('ru-RU')} ₽</strong>
+                    <button className="button button--primary" type="button" onClick={requestClose}>
+                      <Check size={18} aria-hidden="true" />
+                      Готово · {chosenCount} шт
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <strong>
+                      {samePrice ? '' : 'от '}
+                      {basePrice.toLocaleString('ru-RU')} ₽
+                    </strong>
+                    <span className="sheet__buy-hint">Нажмите «+» у нужного вкуса</span>
+                  </>
+                )}
+              </div>
+            </>
+          ) : (
+              <div className="sheet__buy">
+                <strong>{product.price.toLocaleString('ru-RU')} ₽</strong>
+                <button
+                  className="button button--primary"
+                  type="button"
+                  disabled={unavailable}
+                  onClick={(event) => {
+                    if (onAddToCart(product)) {
+                      launch(event);
+                      setAdded(true);
+                    }
+                  }}
+                >
+                  {added ? <Check size={18} aria-hidden="true" /> : <Plus size={18} aria-hidden="true" />}
+                  {unavailable ? 'Нет в наличии' : cartQuantity > 0 ? `В корзине: ${cartQuantity}` : 'В корзину'}
+                </button>
+              </div>
+          )}
         </div>
       </section>
-      {renderFly(product.image)}
+      {renderFly(flyImage)}
     </div>
   );
 }

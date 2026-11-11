@@ -1,6 +1,7 @@
 import {
   Bike,
   Clock3,
+  CopyPlus,
   Edit3,
   ImagePlus,
   Link,
@@ -15,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { realFlavor } from '../../shared/models';
 import type { ChangeEvent, FormEvent } from 'react';
 import { publicAsset } from '../lib/assets';
 import type { CatalogCategory, DeliverySettings, Product, ProductCategory } from '../types';
@@ -209,6 +211,17 @@ export function AdminPanel({
     resetForm();
   };
 
+  // Новый вкус той же модели: бренд, название, цена и фото уже заполнены, остаётся вкус и остаток
+  const addFlavor = (product: Product) => {
+    setDraft({ ...product, id: '', taste: '', stockCount: 0, stock: 'out_of_stock' });
+    setEditingId(null);
+    setImageTouched(true);
+    setBaseStockCount(null);
+    setIsProductEditorOpen(true);
+    focusProductEditor();
+    window.setTimeout(() => document.querySelector<HTMLInputElement>('.admin-product-editor [data-field="taste"]')?.focus(), 400);
+  };
+
   const startEdit = (product: Product) => {
     setDraft(product);
     setEditingId(product.id);
@@ -297,7 +310,7 @@ export function AdminPanel({
                     <div className="section-heading">
                       <div>
                         <span className="eyebrow">{isEditing ? 'Редактирование' : 'Новая позиция'}</span>
-                        <h2>{isEditing ? draft.name : 'Добавить товар'}</h2>
+                        <h2>{isEditing ? draft.name : draft.name ? `Новый вкус: ${draft.name}` : 'Добавить товар'}</h2>
                       </div>
                       <button className="icon-button" type="button" onClick={resetForm} title="Закрыть форму">
                         <X size={17} aria-hidden="true" />
@@ -306,7 +319,8 @@ export function AdminPanel({
 
                     <label>
                       Название
-                      <input required value={draft.name} onChange={(event) => updateIdentity('name', event.target.value)} placeholder="Sopro 20000 Арбуз" />
+                      <input required value={draft.name} onChange={(event) => updateIdentity('name', event.target.value)} placeholder="Sopro 20000" />
+                      <small className="field-hint">Товары с одинаковыми брендом и названием покупатель видит одной карточкой с выбором вкуса.</small>
                     </label>
                     <div className="form-row">
                       <label>
@@ -335,7 +349,7 @@ export function AdminPanel({
                     <div className="form-row">
                       <label>
                         Вкус
-                        <input value={draft.taste} onChange={(event) => updateDraft('taste', event.target.value)} />
+                        <input data-field="taste" value={draft.taste} onChange={(event) => updateDraft('taste', event.target.value)} placeholder="Арбуз" />
                       </label>
                       <label>
                         Никотин
@@ -412,9 +426,12 @@ export function AdminPanel({
                       <article className="admin-product-row" key={product.id}>
                         <ProductImage src={product.image} width={160} />
                         <div>
-                          <strong>{product.name}</strong>
+                          <strong>{[product.name, realFlavor(product.taste)].filter(Boolean).join(' · ')}</strong>
                           <span>{product.brand} · {product.price.toLocaleString('ru-RU')} ₽ · {product.stockCount} шт.</span>
                         </div>
+                        <button className="icon-button" type="button" onClick={() => addFlavor(product)} title="Добавить вкус" aria-label="Добавить вкус этой модели">
+                          <CopyPlus size={16} aria-hidden="true" />
+                        </button>
                         <button className="icon-button" type="button" onClick={() => startEdit(product)} title="Редактировать">
                           <Edit3 size={16} aria-hidden="true" />
                         </button>

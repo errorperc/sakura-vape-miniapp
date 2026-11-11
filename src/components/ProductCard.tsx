@@ -5,6 +5,8 @@ import type { AnimationEvent, CSSProperties, MouseEvent } from 'react';
 import { thumbAsset } from '../lib/assets';
 import { ProductImage } from './ProductImage';
 import type { Product } from '../types';
+import { flavorCountLabel, realFlavor } from '../../shared/models';
+import type { ProductModel } from '../../shared/models';
 
 interface ProductCardProps {
   product: Product;
@@ -103,7 +105,7 @@ export function ProductCard({ product, cartQuantity, onAddToCart, onChangeQuanti
       <div className="product-card__body">
         <span className="product-card__brand">{product.brand}</span>
         <h3>{product.name}</h3>
-        {product.taste ? <span className="product-card__taste">{product.taste}</span> : null}
+        {realFlavor(product.taste) ? <span className="product-card__taste">{realFlavor(product.taste)}</span> : null}
         <strong className="product-card__price">{product.price.toLocaleString('ru-RU')} ₽</strong>
 
         {/* Одна кнопка, которая превращается в счётчик: «+ В корзину» → «− 2 шт +» */}
@@ -140,6 +142,70 @@ export function ProductCard({ product, cartQuantity, onAddToCart, onChangeQuanti
       </div>
 
       {renderFly(product.image)}
+    </article>
+  );
+}
+
+interface ModelCardProps {
+  model: ProductModel<Product>;
+  getCartQuantity: (productId: string) => number;
+  onOpen: (product: Product) => void;
+  eager?: boolean;
+  index?: number;
+}
+
+// Карточка модели с несколькими вкусами: вкус выбирают в шторке
+export function ModelCard({ model, getCartQuantity, onOpen, eager = false, index = 0 }: ModelCardProps) {
+  const available = model.variants.filter((product) => product.isActive && product.stockCount > 0);
+  const shown = available.length > 0 ? available : model.variants;
+  const cover = shown[0];
+  const inCart = model.variants.reduce((sum, product) => sum + getCartQuantity(product.id), 0);
+  const prices = shown.map((product) => product.price);
+  const minPrice = Math.min(...prices);
+  const soldOut = available.length === 0;
+
+  const flavors = shown.map((product) => realFlavor(product.taste)).filter(Boolean);
+  const flavorLine = flavors.length > 3 ? `${flavors.slice(0, 2).join(', ')} и ещё ${flavors.length - 2}` : flavors.join(', ');
+
+  return (
+    <article
+      className={`product-card product-card--${soldOut ? 'out_of_stock' : 'in_stock'} ${index < 2 ? 'is-hero' : ''}`}
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(cover)}
+      onKeyDown={(event) => event.key === 'Enter' && event.target === event.currentTarget && onOpen(cover)}
+      aria-label={`${model.brand} ${model.name}, ${flavorCountLabel(model.variants.length)}`}
+      style={{ '--i': Math.min(index, 8) } as CSSProperties}
+    >
+      <div className="product-card__media">
+        <ProductImage src={cover.image} width={480} eager={eager} priority={index < 2} sizes="(min-width: 560px) 200px, 50vw" />
+        <span className="product-card__stock product-card__stock--flavors">
+          {soldOut ? 'Нет в наличии' : flavorCountLabel(available.length)}
+        </span>
+      </div>
+
+      <div className="product-card__body">
+        <span className="product-card__brand">{model.brand}</span>
+        <h3>{model.name}</h3>
+        {flavorLine ? <span className="product-card__taste">{flavorLine}</span> : null}
+        <strong className="product-card__price">
+          {Math.max(...prices) > minPrice ? 'от ' : ''}
+          {minPrice.toLocaleString('ru-RU')} ₽
+        </strong>
+
+        <div className={`cart-control cart-control--choose ${inCart > 0 ? 'is-chosen' : ''}`}>
+          <button
+            className="cart-control__main"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpen(cover);
+            }}
+          >
+            {inCart > 0 ? `В корзине ${inCart} шт` : soldOut ? 'Посмотреть' : 'Выбрать вкус'}
+          </button>
+        </div>
+      </div>
     </article>
   );
 }

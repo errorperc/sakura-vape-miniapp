@@ -2931,3 +2931,160 @@ body::-webkit-scrollbar {
   height: 100%;
   object-fit: cover;
 }
+
+/* ---------- Вкусы модели ---------- */
+
+.product-card__stock--flavors {
+  color: #fff;
+}
+
+.cart-control--choose.is-chosen {
+  background: var(--accent-soft);
+}
+
+.cart-control--choose.is-chosen .cart-control__main {
+  color: var(--accent);
+}
+
+.flavor-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.flavor-heading h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.flavor-heading span {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.flavor-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+}
+
+.flavor-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 8px 10px 8px 14px;
+}
+
+.flavor-row + .flavor-row {
+  box-shadow: inset 0 1px 0 var(--separator);
+}
+
+.flavor-row__dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.flavor-row__text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.flavor-row__text strong {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flavor-row__text span {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.flavor-row__text span.is-low {
+  color: var(--orange);
+}
+
+.flavor-row.is-out .flavor-row__text strong,
+.flavor-row.is-out .flavor-row__dot {
+  opacity: 0.45;
+}
+
+.flavor-row__add {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  background: var(--fill);
+  color: #fff;
+}
+
+.flavor-row .quantity-control {
+  flex: none;
+  background: var(--accent-fill);
+  animation: count-pop 0.3s var(--ease-out);
+}
+
+.flavor-row .quantity-control .icon-button {
+  width: 40px;
+  height: 40px;
+  color: #fff;
+}
+
+.flavor-row .quantity-control strong {
+  min-width: 22px;
+  color: #fff;
+}
+
+.sheet__buy--flavors {
+  position: sticky;
+  bottom: 0;
+  margin: 4px -20px -4px;
+  padding: 12px 20px calc(12px + var(--safe-bottom));
+  background: var(--surface-solid);
+  box-shadow: 0 -1px 0 var(--separator);
+}
+
+.sheet__buy-hint {
+  flex: 1;
+  color: var(--text-2);
+  font-size: 14px;
+  text-align: right;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+/* Крестик шторки: общее правило .icon-button { position: relative } сбивало его в поток,
+   и он уезжал за левый край. Держим в правом верхнем углу, пока шторка прокручивается. */
+.sheet__close {
+  position: sticky;
+  top: 14px;
+  right: auto;
+  float: right;
+  margin: 14px 14px -48px 0;
+}
+
+.cart-control--choose {
+  grid-template-columns: 1fr;
+}
+
+.sheet__buy--flavors {
+  margin-bottom: -20px;
+}

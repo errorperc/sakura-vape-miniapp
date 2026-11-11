@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getAddressError } from '../shared/address';
 import { cleanName } from '../shared/text';
+import { flavorCountLabel, groupByModel, orderItemTitle, realFlavor } from '../shared/models';
 import { findModelImage, galleryImages } from '../src/lib/modelImages';
 import type { Product } from '../src/types';
 
@@ -64,5 +65,45 @@ describe('фото по модели', () => {
     const gallery = galleryImages([...products, product('3', 'X', 'Y', 'data:image/png;base64,AAA')]);
     expect(new Set(gallery).size).toBe(gallery.length);
     expect(gallery.some((image) => image.startsWith('data:'))).toBe(false);
+  });
+});
+
+describe('вкусы модели', () => {
+  const item = (brand: string, name: string, taste: string) => ({ brand, name, taste });
+
+  it('товары с одинаковыми брендом и названием собираются в одну модель', () => {
+    const models = groupByModel([
+      item('Waka', 'Sopro 20000', 'Арбуз'),
+      item('Pafos', 'Pafos', 'Кола'),
+      item(' waka ', 'sopro  20000', 'Манго'),
+      item('Waka', '10000', 'Мята'),
+    ]);
+
+    expect(models.map((model) => model.variants.length)).toEqual([2, 1, 1]);
+    expect(models[0].variants.map((variant) => variant.taste)).toEqual(['Арбуз', 'Манго']);
+    expect(models[0].name).toBe('Sopro 20000');
+  });
+
+  it('заглушка вкуса покупателю не показывается', () => {
+    expect(realFlavor('Уточните вкус в админке')).toBe('');
+    expect(realFlavor('  ')).toBe('');
+    expect(realFlavor(' Арбуз ')).toBe('Арбуз');
+  });
+
+  it('строка заказа содержит вкус', () => {
+    expect(orderItemTitle('Sopro 20000', 'Арбуз')).toBe('Sopro 20000 · Арбуз');
+    expect(orderItemTitle('Sopro 20000', 'Уточните вкус в админке')).toBe('Sopro 20000');
+  });
+
+  it.each([
+    [1, '1 вкус'],
+    [2, '2 вкуса'],
+    [5, '5 вкусов'],
+    [11, '11 вкусов'],
+    [12, '12 вкусов'],
+    [21, '21 вкус'],
+    [24, '24 вкуса'],
+  ])('склонение: %i → %s', (count, label) => {
+    expect(flavorCountLabel(count)).toBe(label);
   });
 });
