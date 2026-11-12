@@ -1,19 +1,18 @@
 import {
   BadgeCheck,
-  CalendarClock,
   Crown,
   Cloud,
   CloudFog,
   CloudLightning,
   History,
   ShoppingBag,
-  Sparkles,
   Tornado,
   UserRound,
   WalletCards,
   Wind,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
+import { ActiveOrderCard, isActiveOrder } from '../components/ActiveOrderCard';
 import { EmptyState } from '../components/EmptyState';
 import { OrderList } from '../components/OrderList';
 import type { Order, TelegramUserProfile } from '../types';
@@ -23,6 +22,7 @@ interface ProfilePageProps {
   user: TelegramUserProfile;
   orders: Order[];
   isAdmin: boolean;
+  onRepeatOrder: (order: Order) => string | null;
 }
 
 // Уровни клиента: следующий открывается по числу заказов ИЛИ по сумме покупок
@@ -54,12 +54,14 @@ const getClientLevel = (orders: Order[]) => {
   return { level: levels[index], index, next, progress: Math.min(1, progress), hint };
 };
 
-export function ProfilePage({ user, orders, isAdmin }: ProfilePageProps) {
+export function ProfilePage({ user, orders, isAdmin, onRepeatOrder }: ProfilePageProps) {
   const name = formatUserName(user);
   // Отменённые заказы не считаются ни в покупках, ни в среднем чеке, ни в уровне
   const paidOrders = orders.filter((order) => order.status !== 'Отменен');
   const total = paidOrders.reduce((sum, order) => sum + order.total, 0);
-  const lastOrder = paidOrders[0];
+  // Заказы в работе показываем наверху крупно, в истории остаются только завершённые и отменённые
+  const activeOrders = orders.filter(isActiveOrder);
+  const pastOrders = orders.filter((order) => !isActiveOrder(order));
   const clientLevel = getClientLevel(orders);
   const LevelIcon = clientLevel.level.icon;
   const initials = `${user.firstName[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase();
@@ -97,6 +99,14 @@ export function ProfilePage({ user, orders, isAdmin }: ProfilePageProps) {
         </div>
       </section>
 
+      {activeOrders.length > 0 ? (
+        <section className="active-orders" aria-label="Заказы в работе">
+          {activeOrders.map((order) => (
+            <ActiveOrderCard order={order} key={order.id} />
+          ))}
+        </section>
+      ) : null}
+
       <section className={`level-card level-card--${clientLevel.index}`} aria-label="Уровень клиента">
         <span className="level-card__icon" aria-hidden="true">
           <LevelIcon size={22} />
@@ -128,31 +138,17 @@ export function ProfilePage({ user, orders, isAdmin }: ProfilePageProps) {
           <span>Покупки</span>
           <strong>{total.toLocaleString('ru-RU')} ₽</strong>
         </div>
-        <div className="stat-card">
-          <span className="stat-card__icon"><CalendarClock size={16} aria-hidden="true" /></span>
-          <span>Последний</span>
-          <strong>
-            {lastOrder
-              ? new Date(lastOrder.createdAt).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })
-              : 'Нет'}
-          </strong>
-        </div>
-        <div className="stat-card">
-          <span className="stat-card__icon"><Sparkles size={16} aria-hidden="true" /></span>
-          <span>Средний чек</span>
-          <strong>{paidOrders.length ? Math.round(total / paidOrders.length).toLocaleString('ru-RU') : 0} ₽</strong>
-        </div>
       </section>
 
-      {orders.length > 0 ? (
-        <OrderList orders={orders} />
-      ) : (
+      {pastOrders.length > 0 ? (
+        <OrderList orders={pastOrders} onRepeat={onRepeatOrder} />
+      ) : activeOrders.length === 0 ? (
         <EmptyState
           icon={<History size={30} aria-hidden="true" />}
           title="История пуста"
           text="После первого оформления заказа здесь появятся состав, сумма и статус."
         />
-      )}
+      ) : null}
     </main>
   );
 }

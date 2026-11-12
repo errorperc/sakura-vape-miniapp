@@ -23,6 +23,7 @@ import {
 import { getDeliverySettings, saveDeliverySettings } from './lib/settingsApi';
 import { cleanName } from '../shared/text';
 import { modelKey } from '../shared/models';
+import { describeRepeat, planRepeat } from './lib/repeatOrder';
 import { formatUserName, getTelegramUser, haptic, initTelegramApp, isOwnerUser } from './lib/telegram';
 import { getAdminSession } from './lib/teamApi';
 import { CartPage, type ResolvedCartItem } from './pages/CartPage';
@@ -365,6 +366,27 @@ function App() {
     setCartWarning(exactQuantityApplied ? '' : `Доступно только ${product.stockCount} шт.`);
   };
 
+  // Повтор заказа: кладём его товары в корзину по текущим ценам и остаткам и открываем корзину
+  const repeatOrder = (order: Order) => {
+    const plan = planRepeat(order.items, products, cart);
+
+    if (plan.set.length === 0) {
+      haptic('warning');
+      return 'Этих товаров сейчас нет в наличии.';
+    }
+
+    for (const { product, quantity } of plan.set) {
+      if (getCartQuantity(product.id) === 0) addCartItem(product);
+      setCartQuantity(product, quantity);
+    }
+
+    setLastOrder(null);
+    setCartWarning(describeRepeat(plan));
+    haptic('success');
+    setView('cart');
+    return null;
+  };
+
   const removeFromCart = (productId: string) => {
     removeCartItem(productId);
     setCartWarning('');
@@ -699,7 +721,7 @@ function App() {
     }
 
     if (view === 'profile') {
-      return <ProfilePage user={user} orders={userOrders} isAdmin={isAdmin} />;
+      return <ProfilePage user={user} orders={userOrders} isAdmin={isAdmin} onRepeatOrder={repeatOrder} />;
     }
 
     if (view === 'cart') {

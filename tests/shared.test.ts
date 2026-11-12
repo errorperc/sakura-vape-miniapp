@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getAddressError } from '../shared/address';
 import { cleanName } from '../shared/text';
+import { describeRepeat, planRepeat } from '../src/lib/repeatOrder';
 import { flavorCountLabel, groupByModel, orderItemTitle, realFlavor } from '../shared/models';
 import { findModelImage, galleryImages } from '../src/lib/modelImages';
 import type { Product } from '../src/types';
@@ -105,5 +106,31 @@ describe('вкусы модели', () => {
     [24, '24 вкуса'],
   ])('склонение: %i → %s', (count, label) => {
     expect(flavorCountLabel(count)).toBe(label);
+  });
+});
+
+describe('повтор заказа', () => {
+  const product = (id: string, stockCount: number, isActive = true) =>
+    ({ id, name: id, brand: 'B', stockCount, isActive, price: 100 }) as Product;
+  const line = (productId: string, quantity: number) => ({ productId, productName: productId, brand: 'B', price: 90, quantity });
+
+  it('кладёт в корзину столько же, сколько было в заказе', () => {
+    const plan = planRepeat([line('a', 2), line('b', 1)], [product('a', 10), product('b', 5)], []);
+    expect(plan.set.map((entry) => [entry.product.id, entry.quantity])).toEqual([['a', 2], ['b', 1]]);
+    expect(describeRepeat(plan)).toBe('');
+  });
+
+  it('не превышает остаток и сообщает о нехватке', () => {
+    const plan = planRepeat([line('a', 5), line('b', 1), line('c', 1)], [product('a', 2), product('b', 0), product('c', 3, false)], []);
+    expect(plan.set.map((entry) => [entry.product.id, entry.quantity])).toEqual([['a', 2]]);
+    expect(plan.missing).toEqual(['b', 'c']);
+    expect(plan.reduced).toEqual(['a']);
+    expect(describeRepeat(plan)).toContain('Остальное добавлено');
+  });
+
+  it('не уменьшает то, что уже лежит в корзине, и переживает удалённый товар', () => {
+    const plan = planRepeat([line('a', 1), line('gone', 2)], [product('a', 10)], [{ productId: 'a', quantity: 4 }]);
+    expect(plan.set[0].quantity).toBe(4);
+    expect(plan.missing).toEqual(['gone']);
   });
 });

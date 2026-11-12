@@ -1,4 +1,5 @@
-import { CalendarDays, CheckCircle2, Clock3, PackageCheck, Truck, XCircle } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Clock3, PackageCheck, RotateCcw, Truck, XCircle } from 'lucide-react';
+import { useState } from 'react';
 import type { Order, OrderStatus } from '../types';
 import { EmptyState } from './EmptyState';
 import { formatOrderId } from '../lib/ordersApi';
@@ -8,6 +9,8 @@ interface OrderListProps {
   title?: string;
   editable?: boolean;
   onStatusChange?: (orderId: string, status: OrderStatus) => void;
+  /** Повтор заказа. Возвращает текст, если добавить ничего не удалось */
+  onRepeat?: (order: Order) => string | null;
 }
 
 // Подписи статусов для людей; сами значения — ключи API, их не меняем
@@ -38,7 +41,9 @@ const getStatusIcon = (status: OrderStatus) => {
   return PackageCheck;
 };
 
-export function OrderList({ orders, title = 'История заказов', editable = false, onStatusChange }: OrderListProps) {
+export function OrderList({ orders, title = 'История заказов', editable = false, onStatusChange, onRepeat }: OrderListProps) {
+  const [repeatNote, setRepeatNote] = useState<{ orderId: string; text: string } | null>(null);
+
   if (orders.length === 0) {
     return (
       <EmptyState
@@ -118,6 +123,23 @@ export function OrderList({ orders, title = 'История заказов', edi
                 <span className="order-card__address">{order.delivery.address}</span>
                 <strong>{order.total.toLocaleString('ru-RU')} ₽</strong>
               </div>
+
+              {onRepeat && !editable && (order.status === 'Завершен' || order.status === 'Отменен') ? (
+                <div className="order-card__repeat">
+                  <button
+                    className="button button--quiet button--compact"
+                    type="button"
+                    onClick={() => {
+                      const text = onRepeat(order);
+                      setRepeatNote(text ? { orderId: order.id, text } : null);
+                    }}
+                  >
+                    <RotateCcw size={15} aria-hidden="true" />
+                    Повторить
+                  </button>
+                  {repeatNote?.orderId === order.id ? <span role="status">{repeatNote.text}</span> : null}
+                </div>
+              ) : null}
             </article>
           );
         })}
