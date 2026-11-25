@@ -33,6 +33,15 @@ export const createCustomerOrder = (order: Order) =>
     body: JSON.stringify({ order }),
   });
 
+// Фото профиля через сервер: Telegram кладёт photo_url в initData не при каждом запуске
+export const getMyAvatar = async (): Promise<string | null> => {
+  const initData = getTelegramWebApp().initData;
+  if (!initData) return null;
+  const response = await fetch(`${apiBaseUrl}/api/me/avatar`, { headers: { 'x-telegram-init-data': initData } }).catch(() => null);
+  if (!response || response.status !== 200) return null;
+  return URL.createObjectURL(await response.blob());
+};
+
 export const getMyOrders = () => authedRequest<Order[]>('/api/orders/my');
 
 export const getAdminOrders = () => authedRequest<Order[]>('/api/admin/orders');

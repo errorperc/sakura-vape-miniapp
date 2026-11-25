@@ -1,6 +1,6 @@
 import type { Product } from '../types';
 
-export const placeholderImage = 'products/hqd-cuvie-plus.png';
+export const placeholderImage = 'products/hqd-cuvie-plus.webp';
 
 // Готовые фото моделей из репозитория — доступны в галерее админки
 export const bundledImages = [

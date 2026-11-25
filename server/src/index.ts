@@ -508,7 +508,7 @@ const productInput = (body: unknown) => {
   const categoryId = textValue(payload.category ?? payload.categoryId, 80);
   const description = textValue(payload.description, 600);
   const flavor = textValue(payload.taste ?? payload.flavor, 180);
-  const imageUrl = textValue(payload.image ?? payload.imageUrl, 4_000_000) || '/products/hqd-cuvie-plus.png';
+  const imageUrl = textValue(payload.image ?? payload.imageUrl, 4_000_000) || '/products/hqd-cuvie-plus.webp';
   const price = Math.max(0, Math.round(numberValue(payload.price)));
   const quantity = Math.max(0, Math.floor(numberValue(payload.stockCount ?? payload.quantity)));
   const accent = textValue(payload.accent, 20) || '#f52b88';
@@ -1226,6 +1226,75 @@ app.post('/api/orders', async (request, response) => {
 
   notifyManagersAboutOrder(result).catch((error) => console.error('[bot]', error));
   response.status(201).json(serializeOrder(result));
+});
+
+// Аватар покупателя. photo_url в initData Telegram отдаёт только мини-аппам из меню вложений,
+// поэтому фото берём через бота, сжимаем в WebP и держим сутки в кеше. Ссылку на файл
+// Telegram строит с токеном бота, так что наружу отдаём только готовую картинку.
+const avatarCacheMs = 24 * 3600 * 1000;
+const avatarMissing = new Map<string, number>();
+
+const fetchTelegramAvatar = async (telegramId: string, target: string) => {
+  if (!botToken) return false;
+  const photos = await fetch(`${telegramApiUrl}/bot${botToken}/getUserProfilePhotos`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ user_id: Number(telegramId), limit: 1 }),
+    signal: AbortSignal.timeout(10_000),
+  }).then((res) => res.json() as Promise<{ ok?: boolean; result?: { photos?: { file_id: string; width: number }[][] } }>);
+  const sizes = photos.ok ? photos.result?.photos?.[0] : undefined;
+  if (!sizes?.length) return false;
+  const size = sizes.find((item) => item.width >= 320) ?? sizes[sizes.length - 1];
+
+  const file = await fetch(`${telegramApiUrl}/bot${botToken}/getFile`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ file_id: size.file_id }),
+    signal: AbortSignal.timeout(10_000),
+  }).then((res) => res.json() as Promise<{ ok?: boolean; result?: { file_path?: string } }>);
+  if (!file.ok || !file.result?.file_path) return false;
+
+  const image = await fetch(`${telegramApiUrl}/file/bot${botToken}/${file.result.file_path}`, { signal: AbortSignal.timeout(15_000) });
+  if (!image.ok) return false;
+  const { default: sharp } = await import('sharp');
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const temp = `${target}.${randomUUID()}.tmp`;
+  await sharp(Buffer.from(await image.arrayBuffer()), { limitInputPixels: 40_000_000 })
+    .resize(256, 256, { fit: 'cover' })
+    .webp({ quality: 80 })
+    .toFile(temp);
+  fs.renameSync(temp, target);
+  return true;
+};
+
+app.get('/api/me/avatar', async (request, response) => {
+  const user = await requireAuthenticatedUser(request, response);
+  if (!user) return;
+
+  const telegramId = user.telegramId.toString();
+  const target = path.join(thumbsDir, 'avatars', `${telegramId}.webp`);
+  const fresh = (() => {
+    try {
+      return Date.now() - fs.statSync(target).mtimeMs < avatarCacheMs;
+    } catch {
+      return false;
+    }
+  })();
+
+  if (!fresh && (avatarMissing.get(telegramId) ?? 0) < Date.now()) {
+    const found = await fetchTelegramAvatar(telegramId, target).catch((error) => {
+      console.error('Avatar fetch failed', error instanceof Error ? error.message : error);
+      return false;
+    });
+    if (!found) avatarMissing.set(telegramId, Date.now() + 3600 * 1000);
+  }
+
+  if (!fs.existsSync(target)) {
+    response.status(204).end();
+    return;
+  }
+  response.setHeader('Cache-Control', 'private, max-age=3600');
+  response.type('image/webp').sendFile(target);
 });
 
 app.get('/api/orders/my', async (request, response) => {

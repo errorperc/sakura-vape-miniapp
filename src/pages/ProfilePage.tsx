@@ -11,12 +11,13 @@ import {
   WalletCards,
   Wind,
 } from 'lucide-react';
-import type { CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { ActiveOrderCard, isActiveOrder } from '../components/ActiveOrderCard';
 import { EmptyState } from '../components/EmptyState';
 import { OrderList } from '../components/OrderList';
 import type { Order, TelegramUserProfile } from '../types';
 import { formatUserName } from '../lib/telegram';
+import { getMyAvatar } from '../lib/ordersApi';
 
 interface ProfilePageProps {
   user: TelegramUserProfile;
@@ -65,6 +66,30 @@ export function ProfilePage({ user, orders, isAdmin, onRepeatOrder }: ProfilePag
   const clientLevel = getClientLevel(orders);
   const LevelIcon = clientLevel.level.icon;
   const initials = `${user.firstName[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase();
+  // Фото из Telegram приходит не при каждом запуске, а иногда не грузится —
+  // тогда сервер достаёт его через бота
+  const [telegramPhotoFailed, setTelegramPhotoFailed] = useState(false);
+  const [serverAvatar, setServerAvatar] = useState<string | null>(null);
+  const needServerAvatar = !user.isDemo && (!user.photoUrl || telegramPhotoFailed);
+  const avatar = user.photoUrl && !telegramPhotoFailed ? user.photoUrl : serverAvatar;
+
+  useEffect(() => {
+    if (!needServerAvatar) return;
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    void getMyAvatar().then((url) => {
+      if (cancelled) {
+        if (url) URL.revokeObjectURL(url);
+        return;
+      }
+      objectUrl = url;
+      setServerAvatar(url);
+    });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [needServerAvatar]);
 
   return (
     <main className="page page--profile">
@@ -75,7 +100,9 @@ export function ProfilePage({ user, orders, isAdmin, onRepeatOrder }: ProfilePag
       <section className="profile-card">
         <div className="profile-card__avatar-wrap">
           <div className="profile-card__avatar">
-            {user.photoUrl ? <img src={user.photoUrl} alt={name} /> : <span>{initials || <UserRound />}</span>}
+            {avatar ? (
+              <img src={avatar} alt={name} onError={() => (avatar === serverAvatar ? setServerAvatar(null) : setTelegramPhotoFailed(true))} />
+            ) : <span>{initials || <UserRound />}</span>}
           </div>
           <i aria-label="Пользователь активен" />
         </div>
