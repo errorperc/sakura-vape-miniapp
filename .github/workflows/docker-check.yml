@@ -13,8 +13,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      APP_DOMAIN: api.185-246-217-69.sslip.io
-      PUBLIC_APP_URL: https://api.185-246-217-69.sslip.io/
+      APP_DOMAIN: shop.example.com
+      PUBLIC_APP_URL: https://shop.example.com/
       POSTGRES_DB: sakura_vape
       POSTGRES_USER: sakura
       POSTGRES_PASSWORD: 0123456789abcdef0123456789abcdef
@@ -31,3 +31,27 @@ jobs:
 
       - name: Build images
         run: docker compose build
+
+      - name: Validate Caddyfile
+        run: docker compose run --rm --no-deps --entrypoint caddy gateway validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test

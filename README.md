@@ -33,15 +33,9 @@ ADMIN_TELEGRAM_ID="ВАШ_TELEGRAM_ID"
 
 После изменения `.env` перезапустите Vite.
 
-## Хостинг без GitHub Pages
+## Выкладка на сервер
 
-Mini App можно полностью хостить на вашем VPS: Caddy отдаёт React-приложение на корне HTTPS-домена, а `/api/*` проксирует в Express backend. Репозиторий при этом может быть публичным или приватным, потому что пользователи открывают не GitHub Pages, а ваш сервер.
-
-Текущий временный URL:
-
-```text
-https://api.185-246-217-69.sslip.io/
-```
+Пошаговая инструкция — от выбора VPS до резервных копий: [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Создание и настройка Telegram-бота
 
@@ -51,7 +45,7 @@ https://api.185-246-217-69.sslip.io/
 
 ```powershell
 $env:TELEGRAM_BOT_TOKEN="ТОКЕН_ОТ_BOTFATHER"
-$env:TELEGRAM_MINI_APP_URL="https://api.185-246-217-69.sslip.io/"
+$env:TELEGRAM_MINI_APP_URL="https://ваш-домен/"
 npm run bot:configure
 ```
 
@@ -78,105 +72,7 @@ npm run server:dev
 
 Важно: админские действия на production проверяются backend-ом через Telegram `initData`.
 
-## Переезд с компьютера на сервер
+## Переезд с компьютера на сервер и production
 
-1. На компьютере: `npm run data:export` — товары, заказы, учёт и команда сохранятся в `data/export.json`.
-2. Скопируйте на сервер `data/export.json` и папку `data/uploads` (фото, загруженные в админке):
-   `scp -r data/export.json data/uploads root@IP:/opt/sakura-vape/data/`
-3. На сервере после первого `docker compose up` (вместо `db:seed`):
-
-```bash
-cd /opt/sakura-vape
-sudo docker compose cp data/uploads/. api:/app/data/uploads/
-sudo docker compose cp data/export.json api:/app/data/export.json
-sudo docker compose exec api node scripts/data-transfer.mjs import /app/data/export.json
-```
-
-4. Переключите бота на сервер (вебхук и кнопка «Магазин»):
-
-```bash
-TELEGRAM_BOT_TOKEN=... TELEGRAM_MINI_APP_URL=https://ваш-домен/ npm run bot:configure
-```
-
-После этого `npm run local` бота не трогает: он видит, что бот работает на сервере. Для тестов на компьютере
-заведите отдельного бота.
-
-## Production-сервер в Docker
-
-Для первого запуска достаточно Ubuntu 24.04, 1 vCPU, 2 GB RAM и 30 GB NVMe. На такой машине проект использует ограничения памяти для контейнеров и создаёт 2 GB swap. Для роста и более спокойных сборок рекомендуется 2 vCPU и 4 GB RAM.
-
-Frontend и API можно размещать на одном сервере без GitHub Pages. Caddy отдаёт React-приложение на корне домена, а `/api/*` проксирует в backend. Временно можно использовать имя `api.185-246-217-69.sslip.io`, которое автоматически указывает на IP сервера. Позже лучше заменить его собственным доменом.
-
-Первичная подготовка Ubuntu:
-
-```bash
-sudo bash scripts/bootstrap-ubuntu.sh
-sudo git clone https://github.com/errorperc/sakura-vape-miniapp.git /opt/sakura-vape
-cd /opt/sakura-vape
-sudo cp .env.production.example .env
-sudo nano .env
-```
-
-Для пароля PostgreSQL используйте случайную hex-строку без специальных URL-символов:
-
-```bash
-openssl rand -hex 32
-```
-
-Минимальное содержимое `.env`:
-
-```env
-APP_DOMAIN=api.185-246-217-69.sslip.io
-PUBLIC_APP_URL=https://api.185-246-217-69.sslip.io/
-POSTGRES_DB=sakura_vape
-POSTGRES_USER=sakura
-POSTGRES_PASSWORD=СЛУЧАЙНЫЙ_HEX_ПАРОЛЬ
-ADMIN_TELEGRAM_ID=ВАШ_TELEGRAM_ID
-PORT=4000
-```
-
-Откройте firewall только после проверки SSH-доступа:
-
-```bash
-sudo ufw allow OpenSSH
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw allow 443/udp
-sudo ufw enable
-```
-
-Первый запуск:
-
-```bash
-cd /opt/sakura-vape
-sudo docker compose up -d --build --wait
-sudo docker compose run --rm api npm run db:seed
-sudo docker compose ps
-sudo docker compose logs --tail=100
-```
-
-Обновление после новых изменений в GitHub:
-
-```bash
-cd /opt/sakura-vape
-sudo bash scripts/deploy-server.sh
-```
-
-PostgreSQL не опубликован наружу и доступен только контейнеру API. Данные базы, сертификаты Caddy и конфигурация сохраняются в Docker volumes.
-
-Резервная копия базы:
-
-```bash
-cd /opt/sakura-vape
-sudo docker compose exec -T postgres pg_dump -U sakura sakura_vape | gzip > "sakura-$(date +%F).sql.gz"
-```
-
-Для деплоя одной кнопкой в GitHub Actions добавьте repository secrets:
-
-```text
-SERVER_HOST     IP сервера
-SERVER_USER     SSH-пользователь
-SERVER_SSH_KEY  приватный SSH-ключ для деплоя
-```
-
-После этого запустите workflow `Deploy production server` вручную в разделе Actions.
+Перенос данных, запуск в Docker, переключение бота, резервные копии и обновления описаны в
+[docs/DEPLOY.md](docs/DEPLOY.md).

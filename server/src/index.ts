@@ -15,7 +15,8 @@ const botToken = process.env.TELEGRAM_BOT_TOKEN ?? '';
 const telegramApiUrl = (process.env.TELEGRAM_API_URL ?? 'https://api.telegram.org').replace(/\/+$/, '');
 const ownerTelegramId = process.env.OWNER_TELEGRAM_ID ?? process.env.ADMIN_TELEGRAM_ID ?? '';
 const fallbackManagerTelegramId = process.env.MANAGER_TELEGRAM_ID ?? ownerTelegramId;
-const publicAppUrl = process.env.PUBLIC_APP_URL ?? 'https://api.185-246-217-69.sslip.io/';
+// Адрес мини-аппа для кнопок бота; на сервере задаётся в .env (compose без него не запустится)
+const publicAppUrl = process.env.PUBLIC_APP_URL || 'http://localhost:4000/';
 const publicAppOrigin = new URL(publicAppUrl).origin;
 const uploadsDir = path.resolve(process.env.UPLOADS_DIR ?? 'data/uploads');
 // Локальный запуск без Caddy: Express сам отдаёт собранный мини-апп из dist/
